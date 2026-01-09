@@ -10,3 +10,5 @@ grpcio
 requests
 
 tzdata; platform_system=="Windows"
+
+python-dotenv

@@ -22,7 +22,11 @@ def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
     flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
         client_secret_path, scopes)
 
-    credentials = flow.run_local_server()
+
+    print("AUTH FILE:", __file__)
+    print("AUTH PORT:", 8080)
+
+    credentials = flow.run_local_server(port=8080)
 
     youtube = googleapiclient.discovery.build(
         "youtube", "v3", credentials=credentials)

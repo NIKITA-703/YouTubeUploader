@@ -24,7 +24,7 @@ def main():
 
     client_secret_path = os.getenv(
         "YOUTUBE_CLIENT_SECRET",
-        r"/client_secret.apps.googleusercontent.com.json"
+        r"D:\PyCharm\YouTubeUploader\client_secret.apps.googleusercontent.com.json"
     )
 
     youtube = authenticate_youtube(client_secret_path)

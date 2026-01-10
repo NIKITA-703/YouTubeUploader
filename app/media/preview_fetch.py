@@ -13,6 +13,8 @@ from app.config import KNOWN_ARTISTS
 
 GOOGLE_CSE_URL = "https://customsearch.googleapis.com/customsearch/v1"
 
+USED_IMAGE_URLS: set[str] = set()
+
 
 def _get_google_keys() -> tuple[str, str]:
     api_key = os.getenv("GOOGLE_CSE_API_KEY", "").strip()
@@ -102,30 +104,54 @@ def extract_artists(title: str) -> list[str]:
 
 def google_cse_image_search(query: str, num: int = 10, start: int = 1) -> list[dict]:
     api_key, cx = _get_google_keys()
+    if not api_key or not cx:
+        raise RuntimeError(
+            "Не заданы ключи Google CSE. Нужно установить переменные окружения:\n"
+            "- GOOGLE_CSE_API_KEY\n- GOOGLE_CSE_CX"
+        )
 
     params = {
         "key": api_key,
         "cx": cx,
         "q": query,
         "searchType": "image",
-        "num": num,      # 1..10
-        "start": start,  # 1, 11, 21...
+        "num": 10,      # 1..10
+        "start": 1,  # 1, 11, 21...
     }
 
     r = requests.get(GOOGLE_CSE_URL, params=params, timeout=30)
+
+    if r.status_code == 429:
+        raise RuntimeError("CSE_QUOTA_EXCEEDED")
+
     if r.status_code != 200:
         raise RuntimeError(f"HTTP {r.status_code}: {r.text}")
+
     data = r.json()
     return data.get("items", [])
 
 
-def pick_random_image_item(items: list[dict]) -> dict | None:
-    candidates: list[dict] = []
+def pick_random_image_item(items: list[dict]) -> dict:
+    global USED_IMAGE_URLS
+
+    candidates = []
     for it in items:
-        link = it.get("link")
-        if link and not link.startswith("data:"):
-            candidates.append(it)
-    return random.choice(candidates) if candidates else None
+        url = it.get("link")
+        if not url:
+            continue
+        if url.startswith("data:"):
+            continue
+        if url in USED_IMAGE_URLS:
+            continue
+        candidates.append(it)
+
+    # если всё уже использовали — разрешаем повтор
+    if not candidates:
+        candidates = [it for it in items if it.get("link")]
+
+    chosen = random.choice(candidates)
+    USED_IMAGE_URLS.add(chosen["link"])
+    return chosen
 
 
 def guess_ext_from_url(url: str) -> str:

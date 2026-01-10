@@ -17,6 +17,10 @@ const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
 const historyEl = document.getElementById("preview_history");
 
+// gallery
+const galleryEl = document.getElementById("preview_gallery");
+const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
+
 function setStatus(msg) {
   statusEl.textContent = msg || "";
 }
@@ -26,6 +30,7 @@ function setResult(obj) {
 }
 
 function addHistory(url) {
+  if (!url) return;
   const a = document.createElement("a");
   a.href = url;
   a.textContent = url;
@@ -34,6 +39,64 @@ function addHistory(url) {
   historyEl.prepend(a);
 }
 
+async function safeJson(res) {
+  const text = await res.text();
+  try { return { ok: res.ok, status: res.status, data: JSON.parse(text), raw: text }; }
+  catch (_) { return { ok: res.ok, status: res.status, data: null, raw: text }; }
+}
+
+/* =========================
+   GALLERY
+========================= */
+
+function renderGallery(items) {
+  if (!galleryEl) return;
+  galleryEl.innerHTML = "";
+
+  if (!items || items.length === 0) {
+    galleryEl.innerHTML = `<div class="text-muted small">Пока нет превью в папке.</div>`;
+    return;
+  }
+
+  for (const it of items) {
+    const col = document.createElement("div");
+    col.className = "col-6 col-md-4";
+
+    col.innerHTML = `
+      <div class="card h-100 shadow-sm">
+        <img src="${it.url}?t=${Date.now()}" class="card-img-top" style="height:120px; object-fit:cover;">
+        <div class="card-body p-2">
+          <button type="button" class="btn btn-primary btn-sm w-100">Выбрать</button>
+        </div>
+      </div>
+    `;
+
+    col.querySelector("button").addEventListener("click", () => {
+      previewFilenameEl.value = it.name;
+      previewImg.src = it.url + "?t=" + Date.now();
+      setStatus("Выбрано превью из галереи ✅");
+      addHistory(it.url);
+    });
+
+    galleryEl.appendChild(col);
+  }
+}
+
+async function loadGallery() {
+  const res = await fetch("/api/previews");
+  const parsed = await safeJson(res);
+  if (!parsed.ok) {
+    console.warn("Gallery error:", parsed.raw);
+    renderGallery([]);
+    return;
+  }
+  renderGallery(parsed.data.items || []);
+}
+
+/* =========================
+   BUTTONS
+========================= */
+
 clearBtn.addEventListener("click", () => {
   hashtagsEl.value = "";
   seoEl.value = "";
@@ -41,6 +104,7 @@ clearBtn.addEventListener("click", () => {
   previewImg.src = "";
   previewFilenameEl.value = "";
   previewFileEl.value = "";
+  if (videoEl) videoEl.value = "";
   setStatus("Очищено");
   setResult(null);
 });
@@ -58,13 +122,15 @@ fillBtn.addEventListener("click", async () => {
   const fd = new FormData();
   fd.append("title", title);
 
-  const r = await fetch("/api/fill", { method: "POST", body: fd });
-  if (!r.ok) {
-    setStatus("Ошибка fill: " + await r.text());
+  const res = await fetch("/api/fill", { method: "POST", body: fd });
+  const parsed = await safeJson(res);
+
+  if (!parsed.ok) {
+    setStatus("Ошибка fill: " + (parsed.data?.detail || parsed.raw));
     return;
   }
 
-  const data = await r.json();
+  const data = parsed.data;
   hashtagsEl.value = data.hashtags || "";
   seoEl.value = data.seo_tags || "";
 
@@ -72,6 +138,9 @@ fillBtn.addEventListener("click", async () => {
   previewFilenameEl.value = data.preview_filename || "";
 
   if (data.preview_url) addHistory(data.preview_url);
+
+  // обновим галерею (чтобы новая картинка точно появилась)
+  await loadGallery();
 
   setStatus("Готово ✅");
 });
@@ -89,18 +158,30 @@ refreshPreviewBtn.addEventListener("click", async () => {
   const fd = new FormData();
   fd.append("title", title);
 
-  const r = await fetch("/api/preview/refresh", { method: "POST", body: fd });
-  if (!r.ok) {
-    setStatus("Ошибка refresh: " + await r.text());
+  const res = await fetch("/api/preview/refresh", { method: "POST", body: fd });
+  const parsed = await safeJson(res);
+
+  if (!parsed.ok) {
+    setStatus("Ошибка refresh: " + (parsed.data?.detail || parsed.raw));
     return;
   }
 
-  const data = await r.json();
+  const data = parsed.data;
   previewImg.src = (data.preview_url || "") + "?t=" + Date.now();
   previewFilenameEl.value = data.preview_filename || "";
 
   if (data.preview_url) addHistory(data.preview_url);
+
+  // обновим галерею
+  await loadGallery();
+
   setStatus("Новое превью ✅");
+});
+
+refreshGalleryBtn.addEventListener("click", async () => {
+  setStatus("Обновляю галерею...");
+  await loadGallery();
+  setStatus("Галерея обновлена ✅");
 });
 
 uploadBtn.addEventListener("click", async () => {
@@ -133,14 +214,85 @@ uploadBtn.addEventListener("click", async () => {
 
   fd.append("video_file", videoEl.files[0]);
 
-  const r = await fetch("/api/upload", { method: "POST", body: fd });
-  if (!r.ok) {
-    setStatus("Ошибка upload: " + await r.text());
+  const res = await fetch("/api/upload", { method: "POST", body: fd });
+  const parsed = await safeJson(res);
+
+  if (!parsed.ok) {
+    setStatus("Ошибка upload: " + (parsed.data?.detail || parsed.raw));
     return;
   }
 
-  const data = await r.json();
-//  setStatus("Видео загружено ✅ videoId: " + (data.video_id || ""));
-  setStatus("Видео загружено ✅" ));
+  const data = parsed.data;
+  setStatus("Видео загружено ✅");
   setResult(data);
+});
+
+/* =========================
+   INIT
+========================= */
+
+loadGallery().catch(() => {});
+
+const btnRefreshGallery = document.getElementById("refresh_gallery_btn");
+const previewGallery = document.getElementById("preview_gallery");
+
+const API = window.location.origin;
+
+async function loadGallery() {
+  if (!previewGallery) return;
+
+  const r = await fetch(`${API}/api/previews`, { method: "GET" });
+  const text = await r.text();
+
+  if (!r.ok) {
+    throw new Error(text);
+  }
+
+  const data = JSON.parse(text);
+  const items = data.items || [];
+
+  previewGallery.innerHTML = "";
+
+  if (items.length === 0) {
+    previewGallery.innerHTML = `<div class="text-muted small">Пока нет превью в папке.</div>`;
+    return;
+  }
+
+  for (const it of items) {
+    const col = document.createElement("div");
+    col.className = "col-6 col-md-4 col-lg-3";
+
+    col.innerHTML = `
+      <div class="card h-100 shadow-sm" style="cursor:pointer;">
+        <img src="${it.url}?t=${Date.now()}" class="card-img-top" style="height:120px; object-fit:cover;">
+        <div class="card-body p-2">
+          <div class="small text-truncate" title="${it.name}">${it.name}</div>
+          <button type="button" class="btn btn-sm btn-primary w-100 mt-1">Выбрать</button>
+        </div>
+      </div>
+    `;
+
+    col.querySelector("button").onclick = () => {
+      previewFilenameEl.value = it.name;
+      previewImg.src = it.url + "?t=" + Date.now();
+      setStatus("Выбрано превью ✅");
+    };
+
+    previewGallery.appendChild(col);
+  }
+}
+
+btnRefreshGallery?.addEventListener("click", async () => {
+  try {
+    setStatus("Обновляю галерею...");
+    await loadGallery();
+    setStatus("Галерея обновлена ✅");
+  } catch (e) {
+    setStatus("Ошибка");
+    alert("Ошибка галереи: " + e.message);
+  }
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+  loadGallery().catch(() => {});
 });

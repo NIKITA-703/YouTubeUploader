@@ -64,7 +64,7 @@ function renderGallery(items) {
 
     col.innerHTML = `
       <div class="card h-100 shadow-sm">
-        <img src="${it.url}?t=${Date.now()}" class="card-img-top" style="height:120px; object-fit:cover;">
+        <img src="${it.url}?t=${Date.now()}" class="card-img-top" style="height:110px; object-fit:cover;">
         <div class="card-body p-2">
           <button type="button" class="btn btn-primary btn-sm w-100">Выбрать</button>
         </div>

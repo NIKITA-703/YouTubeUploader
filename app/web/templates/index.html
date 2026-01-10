@@ -84,9 +84,11 @@
 
     <!-- RIGHT: preview + gallery -->
     <div class="col-12 col-lg-5">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h5 class="card-title mb-3">Превью</h5>
+      <div style="position: sticky; top: 16px;">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Превью</h5>
+
 
           <div class="border rounded bg-white d-flex align-items-center justify-content-center mb-3" style="height: 280px;">
             <img id="preview_img" alt="preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
@@ -113,7 +115,9 @@
             <button id="refresh_gallery_btn" type="button" class="btn btn-outline-secondary btn-sm">Обновить</button>
           </div>
 
-          <div id="preview_gallery" class="row g-2"></div>
+          <div id="preview_gallery_wrap" class="border rounded p-2 bg-white" style="max-height: 520px; overflow-y: auto;">
+            <div id="preview_gallery" class="row g-2"></div>
+          </div>
 
           <hr class="my-4"/>
 
@@ -122,6 +126,7 @@
             <div id="preview_history" class="d-flex flex-column gap-1"></div>
           </div>
 
+        </div>
         </div>
       </div>
     </div>

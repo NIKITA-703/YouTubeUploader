@@ -15,11 +15,14 @@
 <body>
 <nav class="navbar navbar-expand navbar-dark bg-dark">
   <div class="container-fluid">
-    <span class="navbar-brand mb-0 h1">YouTubeUploader</span>
+    <span class="navbar-brand mb-0 h1">
+      <span class="logo-youtube">YouTube</span><span class="logo-uploader">Uploader</span>
+    </span>
 
     <div class="d-flex align-items-center gap-3 ms-3">
       <span class="navbar-text text-secondary">FastAPI + Bootstrap</span>
     </div>
+
 
     <div class="ms-auto d-flex align-items-center gap-2">
       <span class="text-secondary small">Тема</span>
@@ -70,14 +73,24 @@
 
           <div class="mb-3">
             <label class="form-label">Теги (hashtags)</label>
-            <textarea id="hashtags" class="form-control" rows="2" placeholder="#TravisScottTypeBeat #FutureTypeBeat ..."></textarea>
+            <textarea id="hashtags" class="form-control" rows="2" placeholder="#TravisScottTypeBeat #FutureTypeBeat ..." ></textarea>
             <div class="form-text">Можно оставить пустым — заполнится автоматически.</div>
+
+            <div class="mt-2">
+              <button id="regen_hashtags_btn" type="button" class="btn btn-outline-primary btn-sm"> 🔄 Перегенерировать теги </button>
+            </div>
+
           </div>
 
           <div class="mb-3">
             <label class="form-label">SEO теги (через запятую)</label>
             <textarea id="seo_tags" class="form-control" rows="4" placeholder="travis scott type beat, future type beat, ..."></textarea>
             <div class="form-text">Можно оставить пустым — заполнится автоматически.</div>
+
+            <div class="mt-2">
+              <button id="regen_seo_btn" type="button" class="btn btn-outline-primary btn-sm">🔄 Перегенерировать SEO</button>
+            </div>
+
           </div>
 
           <div class="mb-3">

@@ -19,6 +19,9 @@ const resultBox = document.getElementById("resultBox");
 const uploadProgressWrap = document.getElementById("uploadProgressWrap");
 const uploadProgressBar = document.getElementById("uploadProgressBar");
 
+const regenHashtagsBtn = document.getElementById("regen_hashtags_btn");
+const regenSeoBtn = document.getElementById("regen_seo_btn");
+
 // gallery
 const galleryEl = document.getElementById("preview_gallery");
 const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
@@ -145,6 +148,63 @@ async function loadGallery() {
   }
   renderGallery(parsed.data.items || []);
 }
+
+regenHashtagsBtn?.addEventListener("click", async () => {
+  try {
+    const title = (titleEl.value || "").trim();
+    if (!title) throw new Error("Введите название видео");
+
+    setStatus("Перегенерирую теги...");
+
+    const fd = new FormData();
+    fd.append("title", title);
+
+    const res = await fetch("/api/gen_tags", {
+      method: "POST",
+      body: fd
+    });
+
+    const parsed = await safeJson(res);
+    if (!parsed.ok) {
+      throw new Error(parsed.data?.detail || parsed.raw || "Ошибка генерации тегов");
+    }
+
+    hashtagsEl.value = parsed.data.hashtags || "";
+    setStatus("Теги обновлены ✅");
+  } catch (e) {
+    setStatus("Ошибка");
+    showError("Ошибка: " + e.message);
+  }
+});
+
+regenSeoBtn?.addEventListener("click", async () => {
+  try {
+    const title = (titleEl.value || "").trim();
+    if (!title) throw new Error("Введите название видео");
+
+    setStatus("Перегенерирую SEO теги...");
+
+    const fd = new FormData();
+    fd.append("title", title);
+
+    const res = await fetch("/api/gen_tags", {
+      method: "POST",
+      body: fd
+    });
+
+    const parsed = await safeJson(res);
+    if (!parsed.ok) {
+      throw new Error(parsed.data?.detail || parsed.raw || "Ошибка генерации SEO");
+    }
+
+    seoEl.value = parsed.data.seo_tags || "";
+    setStatus("SEO теги обновлены ✅");
+  } catch (e) {
+    setStatus("Ошибка");
+    showError("Ошибка: " + e.message);
+  }
+});
+
 
 /* =========================
    BUTTONS

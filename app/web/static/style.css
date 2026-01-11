@@ -91,3 +91,31 @@
 body {
   background: var(--bs-body-bg);
 }
+
+
+.navbar {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body:not(.dark) .navbar-divider {
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+
+/* Логотип */
+.logo-youtube {
+  color: #ff2c2c; /* YouTube red */
+  font-weight: 700;
+}
+
+.logo-uploader {
+  color: #ff9f1a; /* тёплый оранжевый */
+  font-weight: 700;
+}
+
+/* на всякий случай — чтобы Bootstrap не перебивал */
+.navbar-brand span {
+  letter-spacing: 0.2px;
+}
+
+

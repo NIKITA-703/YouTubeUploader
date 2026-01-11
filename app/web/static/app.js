@@ -73,16 +73,27 @@ function renderGallery(items) {
   }
 
   function selectPreview(name, url) {
-    previewFilenameEl.value = name;
-    previewImg.src = url + "?t=" + Date.now();
-    setStatus("Выбрано превью ✅");
 
-    // подсветка выбранной карточки (если есть CSS)
-    const cards = galleryEl.querySelectorAll(".preview-card");
-    for (const c of cards) c.classList.remove("selected");
-    const active = galleryEl.querySelector(`.preview-card[data-name="${CSS.escape(name)}"]`);
-    if (active) active.classList.add("selected");
-  }
+    // 1) если ранее было выбрано локальное превью-файлом — сбросим режим файла
+      if (previewFileEl) previewFileEl.value = "";
+
+      // 2) если был blob url от локального файла — освободим его
+      if (_localPreviewUrl) {
+        URL.revokeObjectURL(_localPreviewUrl);
+        _localPreviewUrl = null;
+      }
+
+      // 3) включаем режим "из галереи"
+      previewFilenameEl.value = name;
+      previewImg.src = url + "?t=" + Date.now();
+      setStatus("Выбрано превью ✅");
+
+      // подсветка выбранной карточки
+      const cards = galleryEl.querySelectorAll(".preview-card");
+      for (const c of cards) c.classList.remove("selected");
+      const active = galleryEl.querySelector(`.preview-card[data-name="${CSS.escape(name)}"]`);
+      if (active) active.classList.add("selected");
+    }
 
   for (const it of items) {
     const col = document.createElement("div");
@@ -192,6 +203,12 @@ refreshPreviewBtn?.addEventListener("click", async () => {
     const title = (titleEl.value || "").trim();
     if (!title) throw new Error("Введите название");
 
+    if (previewFileEl) previewFileEl.value = "";
+    if (_localPreviewUrl) {
+      URL.revokeObjectURL(_localPreviewUrl);
+      _localPreviewUrl = null;
+    }
+
     setStatus("Ищу другое превью...");
 
     const fd = new FormData();
@@ -227,6 +244,30 @@ refreshGalleryBtn?.addEventListener("click", async () => {
     showError("Ошибка галереи: " + e.message);
   }
 });
+
+
+let _localPreviewUrl = null;
+
+previewFileEl?.addEventListener("change", () => {
+  const f = previewFileEl.files?.[0];
+  if (!f) return;
+
+  // освободим прошлый blob url (если был)
+  if (_localPreviewUrl) {
+    URL.revokeObjectURL(_localPreviewUrl);
+    _localPreviewUrl = null;
+  }
+
+  // покажем выбранную картинку в окне превью
+  _localPreviewUrl = URL.createObjectURL(f);
+  previewImg.src = _localPreviewUrl;
+
+  // чтобы backend не взял старый preview_filename
+  if (previewFilenameEl) previewFilenameEl.value = "";
+
+  setStatus("Выбрано своё превью ✅");
+});
+
 
 uploadBtn?.addEventListener("click", () => {
   try {
@@ -334,3 +375,30 @@ function escapeHtml(s) {
 window.addEventListener("DOMContentLoaded", () => {
   loadGallery().catch(() => {});
 });
+
+// =========================
+// THEME TOGGLE (Bootstrap 5.3 data-bs-theme)
+// =========================
+(function initThemeToggle() {
+  const toggle = document.getElementById("themeToggle");
+  const root = document.documentElement; // <html>
+
+  function applyTheme(theme) {
+    root.setAttribute("data-bs-theme", theme);
+    try { localStorage.setItem("theme", theme); } catch (_) {}
+    if (toggle) toggle.checked = (theme === "light"); // checked = light (как на твоём скрине)
+  }
+
+  // default = dark (как ты хочешь)
+  let saved = null;
+  try { saved = localStorage.getItem("theme"); } catch (_) {}
+  const theme = (saved === "light" || saved === "dark") ? saved : "dark";
+  applyTheme(theme);
+
+  if (toggle) {
+    toggle.addEventListener("change", () => {
+      // checked => light, unchecked => dark
+      applyTheme(toggle.checked ? "light" : "dark");
+    });
+  }
+})();

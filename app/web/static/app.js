@@ -16,6 +16,9 @@ const previewFileEl = document.getElementById("preview_file");
 const statusEl = document.getElementById("status");
 const resultBox = document.getElementById("resultBox");
 
+const uploadProgressWrap = document.getElementById("uploadProgressWrap");
+const uploadProgressBar = document.getElementById("uploadProgressBar");
+
 // gallery
 const galleryEl = document.getElementById("preview_gallery");
 const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
@@ -225,18 +228,22 @@ refreshGalleryBtn?.addEventListener("click", async () => {
   }
 });
 
-uploadBtn?.addEventListener("click", async () => {
+uploadBtn?.addEventListener("click", () => {
   try {
     hideResult();
 
     const title = (titleEl.value || "").trim();
     if (!title) throw new Error("Введите название");
-
     if (!videoEl.files || videoEl.files.length === 0) {
       throw new Error("Выберите видео файл");
     }
 
-    setStatus("Загружаю на YouTube... Не закрывай страницу.");
+    setStatus("Загружаю видео...");
+    uploadProgressWrap.classList.remove("d-none");
+
+    // reset bar
+    uploadProgressBar.style.width = "0%";
+    uploadProgressBar.textContent = "0%";
 
     const fd = new FormData();
     fd.append("title", title);
@@ -244,7 +251,6 @@ uploadBtn?.addEventListener("click", async () => {
     fd.append("seo_tags", seoEl.value || "");
     fd.append("publish_dt_local", publishEl.value || "");
 
-    // превью: ручной файл > выбранное авто-превью
     if (previewFileEl.files && previewFileEl.files.length > 0) {
       fd.append("preview_file", previewFileEl.files[0]);
     } else {
@@ -253,64 +259,59 @@ uploadBtn?.addEventListener("click", async () => {
 
     fd.append("video_file", videoEl.files[0]);
 
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    const parsed = await safeJson(res);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload", true);
 
-    if (!parsed.ok) {
-      const detail = parsed.data?.detail || parsed.raw || "Ошибка /api/upload";
-      throw new Error(detail);
-    }
+    // 🔥 ПРОГРЕСС ЗАГРУЗКИ
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        uploadProgressBar.style.width = percent + "%";
+        uploadProgressBar.textContent = percent + "%";
 
-    const data = parsed.data || {};
+        setStatus(`Загружаю видео… ${percent}%`);
+      }
+    };
 
-    // --- красивый вывод ---
-    const publishHtml = data.publish_at
-      ? `<div><b>Публикация:</b> ${data.publish_at} (UTC)</div>`
-      : `<div><b>Публикация:</b> без расписания</div>`;
+    xhr.onerror = () => {
+      uploadProgressWrap.classList.add("d-none");
+      setStatus("Ошибка");
+      showError("Ошибка сети при загрузке");
+    };
 
-    const playlists = Array.isArray(data.playlists) ? data.playlists : [];
+    xhr.onload = () => {
+      uploadProgressWrap.classList.add("d-none");
 
-    const playlistsHtml = playlists.length
-      ? `<ul class="mb-0">` +
-        playlists.map(p => {
-          // ✅ поддержка и строк, и объекта
-          const isStr = (typeof p === "string");
-          const nameRaw = isStr ? p : (p?.name || p?.id || "");
-          const urlRaw = isStr ? "" : (p?.url || (p?.id ? `https://www.youtube.com/playlist?list=${encodeURIComponent(p.id)}` : ""));
+      if (xhr.status < 200 || xhr.status >= 300) {
+        setStatus("Ошибка");
+        showError(xhr.responseText || "Ошибка /api/upload");
+        return;
+      }
 
-          const name = escapeHtml(String(nameRaw || ""));
-          const url = String(urlRaw || "");
+      const data = JSON.parse(xhr.responseText || "{}");
 
-          return `<li>${url ? `<a href="${url}" target="_blank" rel="noreferrer">${name}</a>` : name}</li>`;
-        }).join("") +
-        `</ul>`
-      : `<div>—</div>`;
+      // финальный статус
+      setStatus("Готово ✅");
 
-    const url = data.video_url || (data.video_id ? `https://www.youtube.com/watch?v=${data.video_id}` : "");
-    const idHtml = data.video_id ? `<div><b>Video ID:</b> ${escapeHtml(data.video_id)}</div>` : "";
+      const playlists = Array.isArray(data.playlists) ? data.playlists : [];
+      const playlistsHtml = playlists.length
+        ? `<ul>${playlists.map(p =>
+            `<li><a href="${p.url}" target="_blank">${escapeHtml(p.name)}</a></li>`
+          ).join("")}</ul>`
+        : `<div>—</div>`;
 
-    const warnings = Array.isArray(data.warnings) ? data.warnings : [];
-    const warningsHtml = warnings.length
-      ? `<div class="alert alert-warning mt-3 mb-0"><b>Предупреждения:</b><ul class="mb-0">${warnings.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul></div>`
-      : "";
+      showSuccessHtml(`
+        <div class="fw-bold mb-2">Видео успешно загружено ✅</div>
+        <div><b>Video ID:</b> ${escapeHtml(data.video_id)}</div>
+        <div><b>Ссылка:</b> <a href="${data.video_url}" target="_blank">${data.video_url}</a></div>
+        <div class="mt-2"><b>Плейлисты:</b>${playlistsHtml}</div>
+      `);
+    };
 
-    showSuccessHtml(`
-      <div class="fw-bold mb-2">${escapeHtml(data.message || "Видео загружено ✅")}</div>
-      ${idHtml}
-      ${publishHtml}
-      ${url ? `<div><b>Ссылка:</b> <a href="${url}" target="_blank" rel="noreferrer">${url}</a></div>` : ""}
-      <div class="mt-2"><b>Плейлисты:</b>${playlistsHtml}</div>
+    xhr.send(fd);
 
-      ${warningsHtml}
-
-      <details class="mt-3">
-        <summary class="small text-muted">Тех. детали</summary>
-        <pre class="bg-light border rounded p-2 mt-2 mb-0 small" style="white-space: pre-wrap;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
-      </details>
-    `);
-
-    setStatus("Готово ✅");
   } catch (e) {
+    uploadProgressWrap.classList.add("d-none");
     setStatus("Ошибка");
     showError("Ошибка: " + (e?.message || String(e)));
   }

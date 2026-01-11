@@ -283,7 +283,13 @@ def api_upload(
 
         video_url = f"https://www.youtube.com/watch?v={result.video_id}"
 
-        playlist_names = [PLAYLIST_ID_TO_NAME.get(pid, pid) for pid in result.playlist_ids]
+        playlists_out = []
+        for pid in result.playlist_ids:
+            playlists_out.append({
+                "id": pid,
+                "name": PLAYLIST_ID_TO_NAME.get(pid, pid),
+                "url": f"https://www.youtube.com/playlist?list={pid}",
+            })
 
         return JSONResponse(
             {
@@ -292,7 +298,7 @@ def api_upload(
                 "video_id": result.video_id,
                 "video_url": video_url,
                 "publish_at": result.publish_at,  # оставим как есть (UTC) — фронт красиво покажет
-                "playlists": playlist_names,  # уже человеко-понятно
+                "playlists": playlists_out,  # уже человеко-понятно
                 "warnings": getattr(result, "warnings", []),
             }
         )

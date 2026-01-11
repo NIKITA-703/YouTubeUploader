@@ -269,8 +269,21 @@ uploadBtn?.addEventListener("click", async () => {
       : `<div><b>Публикация:</b> без расписания</div>`;
 
     const playlists = Array.isArray(data.playlists) ? data.playlists : [];
+
     const playlistsHtml = playlists.length
-      ? `<ul class="mb-0">${playlists.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ul>`
+      ? `<ul class="mb-0">` +
+        playlists.map(p => {
+          // ✅ поддержка и строк, и объекта
+          const isStr = (typeof p === "string");
+          const nameRaw = isStr ? p : (p?.name || p?.id || "");
+          const urlRaw = isStr ? "" : (p?.url || (p?.id ? `https://www.youtube.com/playlist?list=${encodeURIComponent(p.id)}` : ""));
+
+          const name = escapeHtml(String(nameRaw || ""));
+          const url = String(urlRaw || "");
+
+          return `<li>${url ? `<a href="${url}" target="_blank" rel="noreferrer">${name}</a>` : name}</li>`;
+        }).join("") +
+        `</ul>`
       : `<div>—</div>`;
 
     const url = data.video_url || (data.video_id ? `https://www.youtube.com/watch?v=${data.video_id}` : "");

@@ -1,8 +1,0 @@
-.gallery-scroll {
-  max-height: 520px;
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,.125);
-  border-radius: .5rem;
-  padding: .5rem;
-}

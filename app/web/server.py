@@ -293,6 +293,7 @@ def api_upload(
                 "video_url": video_url,
                 "publish_at": result.publish_at,  # оставим как есть (UTC) — фронт красиво покажет
                 "playlists": playlist_names,  # уже человеко-понятно
+                "warnings": getattr(result, "warnings", []),
             }
         )
 

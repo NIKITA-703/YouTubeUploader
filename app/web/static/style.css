@@ -1,0 +1,36 @@
+/* app/web/static/style.css */
+
+.gallery-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.125);
+  border-radius: .5rem;
+  padding: .5rem;
+}
+
+.preview-card {
+  cursor: pointer;
+  transition: transform .08s ease-in-out, box-shadow .08s ease-in-out;
+}
+
+.preview-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,.08);
+}
+
+.preview-card.selected {
+  outline: 2px solid rgba(13,110,253,.8);
+  outline-offset: 2px;
+}
+
+.preview-img {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+}
+
+.sticky-right {
+  position: sticky;
+  top: 16px;
+}

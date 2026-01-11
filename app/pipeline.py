@@ -117,6 +117,9 @@ def upload_flow_web(
     - можно передать publishAt уже готовым (UTC RFC3339)
     - можно передать preview_path_override (файл), иначе будет скачано автоматически
     """
+
+    warnings: list[str] = []  # удалить
+
     beat_name = (beat_name or "").strip()[:100]
     if not beat_name:
         raise ValueError("beat_name пустой. Нужно указать название видео.")
@@ -172,10 +175,19 @@ def upload_flow_web(
 
         set_preview(youtube, video_id, preview_path)
     except Exception as e:
+
+        warnings.append(f"thumbnail failed: {e}")
+        print("THUMBNAIL ERROR:", repr(e))
+
         print("Preview step failed, skipping preview:", e)
 
     # 6) Playlists
-    playlist_ids = add_video_to_detected_playlists(youtube, video_id, beat_name)
+    try: # удалить
+        playlist_ids = add_video_to_detected_playlists(youtube, video_id, beat_name)
+    except Exception as e:# удалить
+        warnings.append(f"playlists failed: {e}")# удалить
+        playlist_ids = []# удалить
+        print("PLAYLIST ERROR:", repr(e))# удалить
 
     return UploadResult(
         video_id=video_id,

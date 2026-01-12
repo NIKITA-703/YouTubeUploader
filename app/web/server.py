@@ -245,6 +245,9 @@ def api_upload(
         hashtags_list = normalize_hashtags(hashtags)
         seo_list = normalize_seo_tags(seo_tags)
 
+        hashtags_override = hashtags_list  # всегда список, даже []
+        seo_override = seo_list  # всегда список, даже []
+
         # preview override
         preview_path_override: Optional[str] = None
 
@@ -268,8 +271,8 @@ def api_upload(
             media_file=str(video_path),
             beat_name=title,
             gemini_api_key=cfg.gemini_api_key,
-            hashtags_override=hashtags_list if hashtags_list else None,
-            seo_tags_override=seo_list if seo_list else None,
+            hashtags_override=hashtags_override,
+            seo_tags_override=seo_override,
             publish_at_override=publish_at,
             preview_path_override=preview_path_override,
             category_id="10",

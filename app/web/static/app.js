@@ -335,27 +335,31 @@ uploadBtn?.addEventListener("click", () => {
 
     const title = (titleEl.value || "").trim();
     if (!title) throw new Error("Введите название");
+
     if (!videoEl.files || videoEl.files.length === 0) {
       throw new Error("Выберите видео файл");
     }
 
     setStatus("Загружаю видео на сервер...");
-    uploadProgressWrap.classList.remove("d-none");
+    uploadProgressWrap?.classList.remove("d-none");
 
     // reset bar
-    uploadProgressBar.style.width = "0%";
-    uploadProgressBar.textContent = "0%";
+    if (uploadProgressBar) {
+      uploadProgressBar.style.width = "0%";
+      uploadProgressBar.textContent = "0%";
+    }
 
     const fd = new FormData();
     fd.append("title", title);
-    fd.append("hashtags", hashtagsEl.value || "");
-    fd.append("seo_tags", seoEl.value || "");
-    fd.append("publish_dt_local", publishEl.value || "");
+    fd.append("hashtags", hashtagsEl?.value || "");
+    fd.append("seo_tags", seoEl?.value || "");
+    fd.append("publish_dt_local", publishEl?.value || "");
 
-    if (previewFileEl.files && previewFileEl.files.length > 0) {
+    // превью: ручной файл > выбранное авто-превью
+    if (previewFileEl?.files && previewFileEl.files.length > 0) {
       fd.append("preview_file", previewFileEl.files[0]);
     } else {
-      fd.append("preview_filename", previewFilenameEl.value || "");
+      fd.append("preview_filename", previewFilenameEl?.value || "");
     }
 
     fd.append("video_file", videoEl.files[0]);
@@ -363,56 +367,120 @@ uploadBtn?.addEventListener("click", () => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload", true);
 
-    // 🔥 ПРОГРЕСС ЗАГРУЗКИ
+    // 🔥 ПРОГРЕСС ЗАГРУЗКИ (браузер -> твой сервер)
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
+      if (!e.lengthComputable) return;
+      const percent = Math.round((e.loaded / e.total) * 100);
+
+      if (uploadProgressBar) {
         uploadProgressBar.style.width = percent + "%";
         uploadProgressBar.textContent = percent + "%";
+      }
 
-        setStatus(`Загружаю видео… ${percent}%`);
+      setStatus(`Загружаю видео… ${percent}%`);
+      if (percent >= 100) {
+        // дальше уже работа сервера (YouTube upload / плейлисты / превью)
+        setStatus("Видео отправлено на сервер. Загружаю на YouTube…");
       }
     };
 
     xhr.onerror = () => {
-      uploadProgressWrap.classList.add("d-none");
+      uploadProgressWrap?.classList.add("d-none");
       setStatus("Ошибка");
       showError("Ошибка сети при загрузке");
     };
 
     xhr.onload = () => {
-      uploadProgressWrap.classList.add("d-none");
+      uploadProgressWrap?.classList.add("d-none");
 
+      // если сервер вернул ошибку — покажем текст как есть
       if (xhr.status < 200 || xhr.status >= 300) {
         setStatus("Ошибка");
-        showError(xhr.responseText || "Ошибка /api/upload");
+
+        // иногда FastAPI возвращает JSON {"detail": "..."} — попробуем красиво
+        let msg = xhr.responseText || "Ошибка /api/upload";
+        try {
+          const j = JSON.parse(xhr.responseText || "{}");
+          msg = j?.detail || msg;
+        } catch (_) {}
+
+        showError(msg);
         return;
       }
 
-      const data = JSON.parse(xhr.responseText || "{}");
+      // безопасный JSON.parse
+      let data = {};
+      try {
+        data = JSON.parse(xhr.responseText || "{}");
+      } catch (e) {
+        setStatus("Ошибка");
+        showError("Ответ сервера не JSON: " + (xhr.responseText || "").slice(0, 300));
+        return;
+      }
 
       // финальный статус
       setStatus("Готово ✅");
 
+      // --- красивый вывод (как раньше) ---
+      const publishHtml = data.publish_at
+        ? `<div><b>Публикация:</b> ${escapeHtml(String(data.publish_at))} (UTC)</div>`
+        : `<div><b>Публикация:</b> без расписания</div>`;
+
+      const url =
+        data.video_url ||
+        (data.video_id ? `https://www.youtube.com/watch?v=${encodeURIComponent(data.video_id)}` : "");
+
+      const idHtml = data.video_id
+        ? `<div><b>Video ID:</b> ${escapeHtml(String(data.video_id))}</div>`
+        : "";
+
+      // playlists: поддержка и строк, и объектов {id,name,url}
       const playlists = Array.isArray(data.playlists) ? data.playlists : [];
       const playlistsHtml = playlists.length
-        ? `<ul>${playlists.map(p =>
-            `<li><a href="${p.url}" target="_blank">${escapeHtml(p.name)}</a></li>`
-          ).join("")}</ul>`
+        ? `<ul class="mb-0">` +
+          playlists.map((p) => {
+            const isStr = typeof p === "string";
+            const nameRaw = isStr ? p : (p?.name || p?.id || "");
+            const idRaw = isStr ? "" : (p?.id || "");
+            const urlRaw = isStr
+              ? ""
+              : (p?.url || (idRaw ? `https://www.youtube.com/playlist?list=${encodeURIComponent(idRaw)}` : ""));
+
+            const name = escapeHtml(String(nameRaw || ""));
+            const link = String(urlRaw || "");
+
+            return `<li>${link ? `<a href="${link}" target="_blank" rel="noreferrer">${name}</a>` : name}</li>`;
+          }).join("") +
+          `</ul>`
         : `<div>—</div>`;
 
+      const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+      const warningsHtml = warnings.length
+        ? `<div class="alert alert-warning mt-3 mb-0">
+             <b>Предупреждения:</b>
+             <ul class="mb-0">${warnings.map(w => `<li>${escapeHtml(String(w))}</li>`).join("")}</ul>
+           </div>`
+        : "";
+
       showSuccessHtml(`
-        <div class="fw-bold mb-2">Видео успешно загружено ✅</div>
-        <div><b>Video ID:</b> ${escapeHtml(data.video_id)}</div>
-        <div><b>Ссылка:</b> <a href="${data.video_url}" target="_blank">${data.video_url}</a></div>
+        <div class="fw-bold mb-2">${escapeHtml(String(data.message || "Видео успешно загружено ✅"))}</div>
+        ${idHtml}
+        ${publishHtml}
+        ${url ? `<div><b>Ссылка:</b> <a href="${url}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a></div>` : ""}
         <div class="mt-2"><b>Плейлисты:</b>${playlistsHtml}</div>
+        ${warningsHtml}
+
+        <details class="mt-3">
+          <summary class="small text-muted">Тех. детали</summary>
+          <pre class="tech-json border rounded p-2 mt-2 mb-0 small" style="white-space: pre-wrap;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+        </details>
       `);
     };
 
     xhr.send(fd);
 
   } catch (e) {
-    uploadProgressWrap.classList.add("d-none");
+    uploadProgressWrap?.classList.add("d-none");
     setStatus("Ошибка");
     showError("Ошибка: " + (e?.message || String(e)));
   }

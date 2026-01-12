@@ -339,7 +339,7 @@ uploadBtn?.addEventListener("click", () => {
       throw new Error("Выберите видео файл");
     }
 
-    setStatus("Загружаю видео...");
+    setStatus("Загружаю видео на сервер...");
     uploadProgressWrap.classList.remove("d-none");
 
     // reset bar

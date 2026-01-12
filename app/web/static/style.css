@@ -119,3 +119,45 @@ body:not(.dark) .navbar-divider {
 }
 
 
+/* Плавная смена темы */
+html, body {
+  transition: background-color .25s ease, color .25s ease;
+}
+
+.navbar,
+.card,
+.form-control,
+.btn,
+.alert,
+.border,
+.progress,
+.progress-bar {
+  transition:
+    background-color .25s ease,
+    color .25s ease,
+    border-color .25s ease,
+    box-shadow .25s ease;
+}
+
+/* Чтобы инпуты/textarea тоже плавно менялись */
+.form-control,
+textarea,
+input,
+select {
+  transition: background-color .25s ease, color .25s ease, border-color .25s ease;
+}
+
+/* Во время переключения темы чуть мягче воспринимается */
+body.theme-animating .card,
+body.theme-animating .navbar,
+body.theme-animating .form-control {
+  transition-duration: .25s;
+}
+
+
+/* */
+
+/*Убрать полосу прокрутки для всей страницы*/
+body {
+  overflow: hidden;
+}

@@ -14,24 +14,33 @@
 
 <body>
 <nav class="navbar navbar-expand navbar-dark bg-dark">
-  <div class="container-fluid">
-    <span class="navbar-brand mb-0 h1">
-      <span class="logo-youtube">YouTube</span><span class="logo-uploader">Uploader</span>
-    </span>
+  <div class="container-fluid d-flex align-items-center">
 
-    <div class="d-flex align-items-center gap-3 ms-3">
-      <span class="navbar-text text-secondary">FastAPI + Bootstrap</span>
+    <!-- LEFT -->
+    <div class="d-flex align-items-center gap-2">
+      <span class="navbar-brand mb-0 h1">
+        <span class="text-danger">YouTube</span><span class="text-warning">Uploader</span>
+      </span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="navbar-text text-secondary">FastAPI + Bootstrap</span>
+      </div>
     </div>
 
+    <!-- CENTER -->
+    <div class="mx-auto navbar-player">
 
-    <div class="ms-auto d-flex align-items-center gap-2">
-      <span class="text-secondary small">Тема</span>
+    </div>
 
-      <label class="switch" title="Переключить тему">
+    <!-- RIGHT -->
+    <div class="d-flex align-items-center gap-2">
+      <span class="navbar-text text-secondary">Тема</span>
+
+      <label class="switch ms-2">
         <input id="themeToggle" type="checkbox">
         <span class="slider"></span>
       </label>
     </div>
+
   </div>
 </nav>
 
@@ -49,16 +58,15 @@
             <div class="form-text">Файл будет загружен на YouTube, потом удалён локально.</div>
 
             <!-- если прогресс-бар у тебя уже есть - оставь здесь -->
-            <!--
+
             <div id="uploadProgressWrap" class="progress mt-2 d-none" style="height: 18px;">
               <div id="uploadProgressBar" class="progress-bar" style="width:0%">0%</div>
             </div>
-            -->
-          </div>
+            </div>
 
           <div class="mb-3">
             <label class="form-label">Название видео <span class="text-danger">*</span></label>
-            <input id="title" class="form-control" type="text" value="{{ default_title }}">
+            <input id="title" class="form-control" type="text" maxlength="100" value="{{ default_title }}">
             <div class="form-text">YouTube ограничивает title — мы режем до 100 символов.</div>
           </div>
 
@@ -73,7 +81,7 @@
 
           <div class="mb-3">
             <label class="form-label">Теги (hashtags)</label>
-            <textarea id="hashtags" class="form-control" rows="2" placeholder="#TravisScottTypeBeat #FutureTypeBeat ..." ></textarea>
+            <textarea id="hashtags" class="form-control" maxlength="4500" rows="2" placeholder="#TravisScottTypeBeat #FutureTypeBeat ..." ></textarea>
             <div class="form-text">Можно оставить пустым — заполнится автоматически.</div>
 
             <div class="mt-2">
@@ -84,7 +92,7 @@
 
           <div class="mb-3">
             <label class="form-label">SEO теги (через запятую)</label>
-            <textarea id="seo_tags" class="form-control" rows="4" placeholder="travis scott type beat, future type beat, ..."></textarea>
+            <textarea id="seo_tags" class="form-control" maxlength="480" rows="4" placeholder="travis scott type beat, future type beat, ..."></textarea>
             <div class="form-text">Можно оставить пустым — заполнится автоматически.</div>
 
             <div class="mt-2">
@@ -141,6 +149,8 @@
                 <div class="form-text mt-2">Если выберешь файл — он заменит авто-превью.</div>
               </div>
             </div>
+
+
 
             <hr class="my-4"/>
 

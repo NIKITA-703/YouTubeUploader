@@ -33,6 +33,7 @@ KNOWN_ARTISTS = [
     "metro boomin",
     "playboi carti",
     "kanye west",
+    "Drake",
 ]
 
 PLAYLISTS = {

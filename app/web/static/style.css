@@ -848,7 +848,7 @@ textarea.glitch-input:focus {
 
 
 /* =========================
-   UPLOAD BUTTON (Glitch)
+   UPLOAD BUTTON (Clean & Fixed Glitch)
 ========================= */
 
 .upload-btn {
@@ -868,15 +868,12 @@ textarea.glitch-input:focus {
   overflow: hidden;
   border-radius: 14px;
 
-  box-shadow:
-    0 0 12px rgba(0, 242, 234, 0.18),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  /* Тень в покое чуть слабее */
+  box-shadow: 0 0 12px rgba(0, 242, 234, 0.1);
 
-  transition:
-    color 0.25s ease,
-    border-color 0.25s ease,
-    box-shadow 0.25s ease,
-    transform 0.08s ease;
+  /* Переход как у кнопки Gemini */
+  transition: all 0.3s ease;
+  z-index: 1;
 }
 
 .upload-btn:active {
@@ -885,88 +882,78 @@ textarea.glitch-input:focus {
 
 .upload-btn .btn-text {
   position: relative;
-  z-index: 2;
-  transition: opacity 0.2s ease;
+  z-index: 3; /* Текст выше всех слоев */
+  transition: opacity 0.15s ease;
 }
 
-/* --- Hover base --- */
+/* --- СОСТОЯНИЕ ХОВЕРА --- */
 .upload-btn:hover,
 .upload-btn:focus-visible {
-  border-color: #00f2ea;
-  color: #0d0d0d;
-  box-shadow:
-    0 0 28px rgba(0, 242, 234, 0.35),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  background-color: #00f2ea; /* Плавно заливаем фон кнопки */
+  color: #050505;
+
+  /* Мощное свечение */
+  box-shadow: 0 0 25px #00f2ea, 0 0 50px rgba(0, 242, 234, 0.3);
   outline: none;
 }
 
-/* --- HIDE original text --- */
-.upload-btn:hover .btn-text,
-.upload-btn:focus-visible .btn-text {
-  opacity: 0;
+.upload-btn:hover .btn-text {
+  opacity: 0; /* Плавное исчезновение текста */
 }
 
-/* --- GLITCH LAYERS --- */
+/* --- СЛОИ ГЛИТЧА --- */
 .upload-btn::before,
 .upload-btn::after {
   content: attr(data-text);
   position: absolute;
   inset: 0;
-
   display: flex;
   align-items: center;
   justify-content: center;
 
   opacity: 0;
+  z-index: 2;
   pointer-events: none;
 
-  font-family: "Fira Code", Consolas, monospace;
-  letter-spacing: 0.22em;
+  font-family: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
   text-transform: uppercase;
 
+  /* ВАЖНО: Добавляем фон слоям, как в кнопке Gemini */
+  background-color: #00f2ea;
   transition: opacity 0.2s ease;
 }
 
-/* Cyan / Purple split */
+/* Слой 1 (Верхний разрез) */
 .upload-btn::before {
   color: #a855f7;
-  background: rgba(0, 242, 234, 0.95);
+  clip-path: inset(0 0 50% 0);
 }
 
+/* Слой 2 (Нижний разрез) */
 .upload-btn::after {
   color: #050505;
-  background: rgba(0, 242, 234, 1);
+  clip-path: inset(50% 0 0 0);
 }
 
-/* --- ACTIVATE GLITCH --- */
-.upload-btn:hover::before,
-.upload-btn:focus-visible::before {
+/* --- АКТИВАЦИЯ АНИМАЦИИ --- */
+.upload-btn:hover::before {
   opacity: 1;
-  animation: glitch-anim 0.45s
-    cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  animation: glitch-anim-primary 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
-.upload-btn:hover::after,
-.upload-btn:focus-visible::after {
+.upload-btn:hover::after {
   opacity: 1;
-  animation: glitch-anim 0.45s
-    cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+  animation: glitch-anim-primary 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
 }
 
-/* --- Reduced motion --- */
-@media (prefers-reduced-motion: reduce) {
-  .upload-btn::before,
-  .upload-btn::after {
-    animation: none !important;
-    opacity: 0 !important;
-  }
-
-  .upload-btn:hover .btn-text,
-  .upload-btn:focus-visible .btn-text {
-    opacity: 1;
-  }
+/* Фикс, чтобы глитч не "залипал" */
+.upload-btn:not(:hover)::before,
+.upload-btn:not(:hover)::after {
+  opacity: 0;
+  animation: none;
 }
-
 
 /* =========================
    UNIVERSAL GLITCH BUTTON
@@ -1775,9 +1762,10 @@ textarea.glitch-input::placeholder {
 textarea.glitch-input:focus {
   border-color: var(--ui-border-strong) !important;
   outline: none !important;
-  box-shadow:
-    0 0 0 .2rem rgba(0, 242, 234, 0.12),
-    inset 0 0 0 1px rgba(0,0,0,0.6) !important;
+  background-color: rgba(0, 242, 234, 0.05);
+  border-color: #00f2ea;
+  box-shadow: 0 0 15px rgba(0, 242, 234, 0.2);
+  color: #e5e5e5;
 }
 
 /* Лейблы: делаем “глитч” как на login */
@@ -2197,20 +2185,23 @@ textarea.glitch-input:focus {
 
   font-family: "Fira Code", Consolas, "Courier New", monospace;
   letter-spacing: 0.22em;
+
+  transition: opacity 0.2s ease;
+  background-color: #00f2ea; /* Цвет фона слоя при наведении */
 }
 
 /* Слой 1: Пурпурный */
 .btn.btn-primary.glitch-primary-like-login::before {
   background: #00f2ea;
   color: #a855f7;
-  /* Смещение для эффекта разрезки */
-  clip-path: inset(0 0 50% 0);
+  /* Смещение для эффекта разрезки
+  clip-path: inset(0 0 50% 0);*/
 }
 
 /* Слой 2: Темный/Черный */
 .btn.btn-primary.glitch-primary-like-login::after {
   background: #00f2ea;
-  color: #050505;
+  color: #0d0d0d;
   clip-path: inset(50% 0 0 0);
 }
 
@@ -2234,6 +2225,7 @@ textarea.glitch-input:focus {
   80% { transform: translate(2px, -1px); }
   100% { transform: translate(0); }
 }
+
 
 /* Фикс для мобилок/тачпадов: убираем глитч если не наведены */
 .btn.btn-primary.glitch-primary-like-login:not(:hover)::before,

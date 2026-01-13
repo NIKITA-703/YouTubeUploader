@@ -226,6 +226,8 @@ tmp/
 
 client_secret*.json
 
+delete.css
+
 structure.md
 
 beat.mp4
@@ -235,5 +237,4 @@ drake.jpg
 
 photo/
 previews/
-=======
->>>>>>> 0b255a7e81d0403420b783d41c48a05f84b2b73c
+

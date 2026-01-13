@@ -107,7 +107,12 @@ function renderGallery(items) {
         <img src="${it.url}?t=${Date.now()}" class="card-img-top preview-img" alt="${it.name}">
         <div class="card-body p-2">
           <div class="small text-truncate" title="${it.name}">${it.name}</div>
-          <button type="button" class="btn btn-sm btn-primary w-100 mt-1">Выбрать</button>
+          <!-- Добавили класс glitch-primary-like-login, атрибут data-text и span внутри -->
+          <button type="button"
+                  class="btn btn-sm btn-primary w-100 mt-1 glitch-primary-like-login"
+                  data-text="ВЫБРАТЬ">
+            <span class="btn-text">Выбрать</span>
+          </button>
         </div>
       </div>
     `;

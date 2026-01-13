@@ -2107,6 +2107,27 @@ textarea.glitch-input:focus {
   }
 }
 
+/* Адаптация глитч-эффекта под маленькие кнопки (btn-sm) */
+.btn.btn-sm.glitch-primary-like-login {
+  padding: 0.4rem 0.8rem; /* Уменьшенный отступ */
+  font-size: 0.75rem;     /* Уменьшенный шрифт */
+  letter-spacing: 0.12em; /* Чуть меньше расстояние, чтобы влезло */
+  border-radius: 8px;     /* Более аккуратные углы для маленькой кнопки */
+}
+
+/* Корректируем шрифты и интервалы для слоев глитча в маленькой кнопке */
+.btn.btn-sm.glitch-primary-like-login::before,
+.btn.btn-sm.glitch-primary-like-login::after {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+}
+
+/* Свечение для маленькой кнопки делаем чуть скромнее, чтобы не перекрывало соседние фото */
+.btn.btn-sm.glitch-primary-like-login:hover,
+.btn.btn-sm.glitch-primary-like-login:focus {
+  box-shadow: 0 0 15px #00f2ea, 0 0 30px rgba(0, 242, 234, 0.2);
+}
+
 /* =========================
    FIXED PRIMARY GLITCH BUTTON
    (Для длинного текста: Заполнить поля...)

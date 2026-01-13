@@ -63,7 +63,7 @@ def load_config() -> AppConfig:
 
     default_title = os.getenv(
         "DEFAULT_TITLE",
-        "[  ] ... x ... - ... [  ]"
+        "[TEXT] ARTIST x ARTIST TYPE BEAT - NAME_BEAT [TEXT]"
     )
 
     return AppConfig(

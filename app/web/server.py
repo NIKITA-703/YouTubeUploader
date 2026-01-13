@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import logging
 import traceback
 import os
 import uuid
+import hashlib
+import hmac
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from fastapi import status
 
 from starlette.requests import Request
@@ -25,7 +30,21 @@ from app.media.preview_fetch import download_thumbnail_for_beat
 from app.pipeline import upload_flow_web
 from app.config import PLAYLISTS
 
+from starlette.middleware.base import BaseHTTPMiddleware
+
 load_dotenv()
+
+app = FastAPI()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# Сначала определяем настройки
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip()
+ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "").strip().lower()
+SESSION_SECRET = os.getenv("SESSION_SECRET", "super-secret-key").strip()
+
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 APP_DIR = Path(__file__).resolve().parent
@@ -40,11 +59,13 @@ WEB_TMP_DIR.mkdir(parents=True, exist_ok=True)
 PREVIEW_DIR = Path(os.getenv("PREVIEW_DIR", str(BASE_DIR / "photo"))).resolve()
 PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/previews", StaticFiles(directory=str(PREVIEW_DIR)), name="previews")
+
+PUBLIC_PATH_PREFIXES = ("/static", "/previews")
+PUBLIC_PATHS = ("/login",)
 
 _youtube = None
 
@@ -53,6 +74,119 @@ PLAYLIST_ID_TO_NAME = {
     pid: name.title() + " Type Beat"
     for name, pid in PLAYLISTS.items()
 }
+
+
+def is_logged_in(request: Request) -> bool:
+    # Используем только один ключ 'logged_in' везде
+    return request.session.get("logged_in") is True
+
+
+def set_logged_in(request: Request):
+    request.session["logged_in"] = True
+
+
+def set_logged_out(request: Request):
+    request.session.clear()
+
+
+@app.middleware("http")
+async def auth_guard(request: Request, call_next):
+    path = request.url.path
+
+    # Публичные пути
+    if path == "/login" or path.startswith(("/static", "/previews", "/favicon.ico")):
+        return await call_next(request)
+
+    # Если не залогинен
+    if not is_logged_in(request):
+        if path.startswith("/api/"):
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+        return RedirectResponse(url="/login", status_code=302)
+
+    return await call_next(request)
+
+
+# СЕССИИ — СТРОГО ОДИН РАЗ И СТРОГО ТУТ
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    session_cookie="uploader_session",
+    same_site="lax",
+    https_only=False,
+)
+
+
+def _hash_user_pass(username: str, password: str) -> str:
+    # sha256(username:password)
+    s = f"{username}:{password}".encode("utf-8")
+    return hashlib.sha256(s).hexdigest()
+
+
+# Тестовый принт при запуске сервера
+print("--- ПРОВЕРКА НАСТРОЕК ---")
+print(f"ADMIN_USERNAME: {ADMIN_USERNAME}")
+test_hash = _hash_user_pass("kellmi", "12345")
+print(f"Если логин 'kellmi' и пароль '12345', то в .env должен быть хэш: {test_hash}")
+print(f"А у тебя в .env сейчас: {ADMIN_PASSWORD_HASH}")
+print("------------------------")
+
+
+# --- 3. РОУТЫ ЛОГИНА ---
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = ""):
+    if is_logged_in(request):
+        return RedirectResponse(url="/", status_code=302)
+
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": bool(error),
+            "debug": {
+                "entered_u": request.query_params.get("entered_u", "-"),
+                "calc_h": request.query_params.get("calc_h", "-"),
+                "expected_h": ADMIN_PASSWORD_HASH
+            }
+        }
+    )
+
+
+@app.post("/login")
+async def login_submit(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+):
+    # Принудительно очищаем ввод
+    u = (username or "").strip()
+    p = (password or "").strip()
+
+    # Хэшируем то, что ввел юзер
+    calc = _hash_user_pass(u, p).lower()
+
+    # Сверяем с ENV (тоже очищаем на всякий случай)
+    target_u = ADMIN_USERNAME.strip()
+    target_h = ADMIN_PASSWORD_HASH.strip().lower()
+
+    # ЕСЛИ ХОТЯ БЫ ТУТ СРАБОТАЕТ — ТЫ ВОЙДЕШЬ
+    if u == target_u and hmac.compare_digest(calc, target_h):
+        set_logged_in(request)
+        print(f"--> [OK] Юзер {u} вошел!")
+        return RedirectResponse(url="/", status_code=303)
+
+    # Если не подошло — возвращаем ошибку
+    print(f"--> [FAIL] Ошибка входа для {u}")
+    return RedirectResponse(
+        url=f"/login?error=1&entered_u={u}&calc_h={calc}",
+        status_code=303
+    )
+
+
+@app.post("/logout")
+def logout(request: Request):
+    set_logged_out(request)
+    return RedirectResponse(url="/login", status_code=302)
 
 
 def get_youtube_client():
@@ -66,6 +200,14 @@ def get_youtube_client():
     )
     _youtube = authenticate_youtube(client_secret_path)
     return _youtube
+
+
+def _admin_username() -> str:
+    return (os.getenv("ADMIN_USERNAME") or "").strip()
+
+
+def _admin_password_hash() -> str:
+    return (os.getenv("ADMIN_PASSWORD_HASH") or "").strip().lower()
 
 
 def parse_dt_local_msk_to_publish_at(dt_local_str: str) -> str:

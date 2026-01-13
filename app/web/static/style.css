@@ -2196,12 +2196,12 @@ textarea.glitch-input:focus {
 /* Активация глитча */
 .btn.btn-primary.glitch-primary-like-login:hover::before {
   opacity: 1;
-  animation: glitch-anim-primary 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  animation: glitch-anim-primary 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
 .btn.btn-primary.glitch-primary-like-login:hover::after {
   opacity: 1;
-  animation: glitch-anim-primary 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+  animation: glitch-anim-primary 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
 }
 
 /* Специальная анимация для длинного текста (меньше амплитуда, чтобы читалось) */

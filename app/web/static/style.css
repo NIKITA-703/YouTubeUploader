@@ -2233,3 +2233,132 @@ textarea.glitch-input:focus {
   opacity: 0;
   animation: none;
 }
+
+
+/* =========================
+   SUCCESS ALERT (System Log Style)
+========================= */
+
+.glitch-success-container {
+  background: rgba(0, 242, 234, 0.03) !important;
+  border: 1px solid rgba(0, 242, 234, 0.3) !important;
+  padding: 1.5rem;
+  position: relative;
+  font-family: "Fira Code", Consolas, monospace;
+}
+
+/* Угловой индикатор (как в интерфейсах будущего) */
+.glitch-success-container::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: -1px;
+  width: 10px; height: 10px;
+  border-top: 2px solid #00f2ea;
+  border-left: 2px solid #00f2ea;
+}
+
+.glitch-success-header {
+  color: #00f2ea;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 10px rgba(0, 242, 234, 0.5);
+  font-size: 1.1rem;
+}
+
+.glitch-success-item {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: rgba(229, 229, 229, 0.9);
+}
+
+.glitch-success-item b {
+  color: #00f2ea;
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  margin-right: 5px;
+}
+
+.glitch-success-link {
+  color: #a855f7 !important; /* Пурпурный для ссылок */
+  text-decoration: none;
+  transition: all 0.2s;
+  border-bottom: 1px solid transparent;
+}
+
+.glitch-success-link:hover {
+  color: #00f2ea !important;
+  text-shadow: 0 0 8px #00f2ea;
+  border-bottom-color: #00f2ea;
+}
+
+/* Стилизация раскрывающихся деталей */
+.glitch-details summary {
+  cursor: pointer;
+  color: rgba(229, 229, 229, 0.5);
+  transition: color 0.2s;
+  outline: none;
+}
+
+.glitch-details summary:hover {
+  color: #00f2ea;
+}
+
+/* Плейлисты - теги */
+.playlist-badge {
+  display: inline-block;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #a855f7;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  margin-left: 5px;
+  text-transform: uppercase;
+}
+
+/* Оранжевая системная тревога вместо Bootstrap Alert */
+.glitch-warning-panel {
+  background: rgba(255, 193, 7, 0.05) !important;
+  border: 1px solid rgba(255, 193, 7, 0.3) !important;
+  color: #ffc107 !important;
+  padding: 10px;
+  font-family: "Fira Code", monospace;
+  font-size: 0.8rem;
+  position: relative;
+}
+
+.glitch-warning-panel b {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #ffc107;
+}
+
+/* Кастомный список плейлистов */
+.glitch-success-list {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 5px;
+}
+
+.glitch-success-list li {
+  position: relative;
+  padding-left: 15px;
+  margin-bottom: 3px;
+}
+
+.glitch-success-list li::before {
+  content: ">";
+  position: absolute;
+  left: 0;
+  color: #a855f7;
+}
+
+.glitch-success-list li a {
+  color: #a855f7;
+  text-decoration: none;
+}
+
+.glitch-success-list li a:hover {
+  color: #00f2ea;
+  text-shadow: 0 0 5px #00f2ea;
+}

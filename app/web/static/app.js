@@ -427,59 +427,75 @@ uploadBtn?.addEventListener("click", () => {
       setStatus("Готово ✅");
 
       // --- красивый вывод (как раньше) ---
-      const publishHtml = data.publish_at
-        ? `<div><b>Публикация:</b> ${escapeHtml(String(data.publish_at))} (UTC)</div>`
-        : `<div><b>Публикация:</b> без расписания</div>`;
+      const publishText = data.publish_at
+      ? `${escapeHtml(String(data.publish_at))} (UTC)`
+      : "NO_DATE";
 
-      const url =
-        data.video_url ||
-        (data.video_id ? `https://www.youtube.com/watch?v=${encodeURIComponent(data.video_id)}` : "");
+        // 2. Формируем ссылку (исправил твой url_id)
+        const url = data.video_url || (data.video_id ? `https://youtu.be/${data.video_id}` : "");
 
-      const idHtml = data.video_id
-        ? `<div><b>Video ID:</b> ${escapeHtml(String(data.video_id))}</div>`
-        : "";
+        // 3. Плейлисты: теперь используем наш glitch-success-list
+        const playlists = Array.isArray(data.playlists) ? data.playlists : [];
+        const playlistsHtml = playlists.length
+          ? `<ul class="glitch-success-list">` +
+            playlists.map((p) => {
+              const isStr = typeof p === "string";
+              const nameRaw = isStr ? p : (p?.name || p?.id || "");
+              const idRaw = isStr ? "" : (p?.id || "");
+              const urlRaw = isStr
+                ? ""
+                : (p?.url || (idRaw ? `https://www.youtube.com/playlist?list=${encodeURIComponent(idRaw)}` : ""));
 
-      // playlists: поддержка и строк, и объектов {id,name,url}
-      const playlists = Array.isArray(data.playlists) ? data.playlists : [];
-      const playlistsHtml = playlists.length
-        ? `<ul class="mb-0">` +
-          playlists.map((p) => {
-            const isStr = typeof p === "string";
-            const nameRaw = isStr ? p : (p?.name || p?.id || "");
-            const idRaw = isStr ? "" : (p?.id || "");
-            const urlRaw = isStr
-              ? ""
-              : (p?.url || (idRaw ? `https://www.youtube.com/playlist?list=${encodeURIComponent(idRaw)}` : ""));
+          const name = escapeHtml(String(nameRaw || ""));
+          const link = String(urlRaw || "");
 
-            const name = escapeHtml(String(nameRaw || ""));
-            const link = String(urlRaw || "");
+          return `<li>${link ? `<a href="${link}" target="_blank" rel="noreferrer">${name}</a>` : name}</li>`;
+        }).join("") +
+        `</ul>`
+      : `<span class="text-muted">NONE</span>`;
 
-            return `<li>${link ? `<a href="${link}" target="_blank" rel="noreferrer">${name}</a>` : name}</li>`;
-          }).join("") +
-          `</ul>`
-        : `<div>—</div>`;
-
-      const warnings = Array.isArray(data.warnings) ? data.warnings : [];
-      const warningsHtml = warnings.length
-        ? `<div class="alert alert-warning mt-3 mb-0">
-             <b>Предупреждения:</b>
-             <ul class="mb-0">${warnings.map(w => `<li>${escapeHtml(String(w))}</li>`).join("")}</ul>
-           </div>`
-        : "";
+    // 4. Предупреждения: используем glitch-warning-panel
+    const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+    const warningsHtml = warnings.length
+      ? `<div class="glitch-warning-panel mt-3">
+           <b>SYSTEM_WARNINGS //</b>
+           <ul class="mb-0 mt-1 glitch-success-list">${warnings.map(w => `<li>${escapeHtml(String(w))}</li>`).join("")}</ul>
+         </div>`
+      : "";
 
       showSuccessHtml(`
-        <div class="fw-bold mb-2">${escapeHtml(String(data.message || "Видео успешно загружено ✅"))}</div>
-        ${idHtml}
-        ${publishHtml}
-        ${url ? `<div><b>Ссылка:</b> <a href="${url}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a></div>` : ""}
-        <div class="mt-2"><b>Плейлисты:</b>${playlistsHtml}</div>
-        ${warningsHtml}
+  <div class="glitch-success-container">
+    <div class="glitch-success-header mb-4">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      SYSTEM // UPLOAD_COMPLETE
+    </div>
 
-        <details class="mt-3">
-          <summary class="small text-muted">Тех. детали</summary>
-          <pre class="tech-json border rounded p-2 mt-2 mb-0 small" style="white-space: pre-wrap;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
-        </details>
-      `);
+    <div class="glitch-success-item"><b>VIDEO_ID:</b> <span class="text-white">${escapeHtml(String(data.video_id || "N/A"))}</span></div>
+
+    <div class="glitch-success-item"><b>SCHEDULE:</b> <span class="text-white">${publishText}</span></div>
+
+    ${url ? `
+      <div class="glitch-success-item">
+        <b>ACCESS_URL:</b>
+        <a href="${url}" target="_blank" rel="noreferrer" class="glitch-success-link">${escapeHtml(url)}</a>
+      </div>` : ""
+    }
+
+    <div class="glitch-success-item mt-3">
+      <b>TARGET_PLAYLISTS:</b>
+      ${playlistsHtml}
+    </div>
+
+    ${warningsHtml}
+
+    <details class="glitch-details mt-4">
+      <summary class="small">>> DECRYPT_RAW_DATA.JSON</summary>
+      <pre class="tech-json p-2 mt-2 mb-0 small" style="white-space: pre-wrap;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+    </details>
+  </div>
+`);
     };
 
     xhr.send(fd);

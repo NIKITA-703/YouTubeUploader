@@ -443,3 +443,1780 @@ body.login-page {
   }
   .submit-btn:hover .btn-text { opacity: 1; }
 }
+
+
+/* =========================
+   GLITCH THEME FOR INDEX
+   (Bootstrap оставляем как сетку)
+========================= */
+
+/* общий фон как у login */
+body {
+  background: #050505 !important;
+  color: #e5e5e5;
+}
+
+/* navbar в стиле логина */
+.glitch-nav {
+  background: rgba(0,0,0,0.35) !important;
+  border-bottom: 1px solid rgba(0, 242, 234, 0.18) !important;
+  box-shadow:
+    0 0 18px rgba(0, 242, 234, 0.06),
+    inset 0 0 10px rgba(0, 0, 0, 0.55);
+}
+
+.glitch-brand {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.glitch-subtitle {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.glitch-logout {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-color: rgba(255, 77, 77, 0.55) !important;
+}
+
+.glitch-logout:hover {
+  box-shadow: 0 0 16px rgba(255, 77, 77, 0.25);
+}
+
+/* карточки в стиле login (glitch-card), но чтобы дружили с Bootstrap */
+.glitch-card-ui {
+  background-color: #0d0d0d !important;
+  border: 1px solid rgba(0, 242, 234, 0.2) !important;
+  border-radius: 0 !important;              /* как терминал */
+  box-shadow:
+    0 0 20px rgba(0, 242, 234, 0.10),
+    inset 0 0 10px rgba(0, 0, 0, 0.55) !important;
+  overflow: hidden;
+}
+
+.glitch-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  background: rgba(0,0,0,0.30) !important;
+  border-bottom: 1px solid rgba(0, 242, 234, 0.2) !important;
+
+  padding: 0.6rem 1rem;
+}
+
+.glitch-card-title {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  color: #00f2ea;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+/* точки как на логине */
+.card-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #333;
+  margin-left: 5px;
+}
+
+/* заголовки внутри card-body */
+.glitch-card-ui .card-title,
+.glitch-card-ui h5,
+.glitch-card-ui .fw-semibold {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* inputs/textarea/select: терминальный стиль */
+.glitch-card-ui .form-control,
+.glitch-card-ui textarea,
+.glitch-card-ui input[type="text"],
+.glitch-card-ui input[type="file"],
+.glitch-card-ui input[type="datetime-local"] {
+  background: transparent !important;
+  color: #e5e5e5 !important;
+  border: none !important;
+  border-bottom: 2px solid rgba(0, 242, 234, 0.28) !important;
+  border-radius: 0 !important;
+  /*padding-left: 0 !important;*/
+  padding-right: 0 !important;
+}
+
+.glitch-card-ui .form-control:focus {
+  box-shadow: none !important;
+  border-bottom-color: rgba(0, 242, 234, 0.9) !important;
+}
+
+/* label / form-text */
+.glitch-card-ui .form-label {
+  color: rgba(0, 242, 234, 0.75) !important;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.glitch-card-ui .form-text,
+.glitch-card-ui .text-muted,
+.glitch-card-ui .small {
+  color: rgba(229,229,229,0.65) !important;
+}
+
+/* кнопки под стиль */
+.glitch-card-ui .btn-primary,
+.glitch-card-ui .btn-success,
+.glitch-card-ui .btn-outline-primary,
+.glitch-card-ui .btn-outline-secondary {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 0 !important;
+}
+
+.glitch-card-ui .btn-primary {
+  background: transparent !important;
+  border: 2px solid rgba(0, 242, 234, 0.9) !important;
+  color: rgba(0, 242, 234, 0.95) !important;
+}
+
+.glitch-card-ui .btn-primary:hover {
+  background: rgba(0, 242, 234, 0.95) !important;
+  color: #0d0d0d !important;
+  box-shadow: 0 0 22px rgba(0, 242, 234, 0.25);
+}
+
+.glitch-card-ui .btn-success {
+  background: transparent !important;
+  border: 2px solid rgba(168, 85, 247, 0.95) !important;
+  color: rgba(168, 85, 247, 0.95) !important;
+}
+
+.glitch-card-ui .btn-success:hover {
+  background: rgba(168, 85, 247, 0.95) !important;
+  color: #0d0d0d !important;
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.25);
+}
+
+.glitch-card-ui .btn-outline-primary {
+  border-color: rgba(0, 242, 234, 0.6) !important;
+  color: rgba(0, 242, 234, 0.9) !important;
+}
+
+.glitch-card-ui .btn-outline-primary:hover {
+  background: rgba(0, 242, 234, 0.12) !important;
+}
+
+/* progress */
+.glitch-card-ui .progress {
+  background: rgba(255,255,255,0.08) !important;
+  border-radius: 0 !important;
+}
+
+.glitch-card-ui .progress-bar {
+  border-radius: 0 !important;
+}
+
+/* блок превью (border rounded bg-body...) — делаем темнее и в тему */
+.glitch-card-ui .border.rounded,
+.glitch-card-ui .bg-body,
+.glitch-card-ui .bg-body-tertiary {
+  background: rgba(0,0,0,0.25) !important;
+  border: 1px solid rgba(0, 242, 234, 0.18) !important;
+  border-radius: 0 !important;
+}
+
+/* галерея */
+.gallery-scroll {
+  border: 1px solid rgba(0, 242, 234, 0.18) !important;
+  border-radius: 0 !important;
+  background: rgba(0,0,0,0.22) !important;
+}
+
+/* JSON поле уже ок, но под общий вид чуть подтянем */
+.tech-json {
+  background-color: #171717 !important;
+  color: #e6e6e6 !important;
+  border-color: rgba(0, 242, 234, 0.18) !important;
+  border-radius: 0 !important;
+}
+
+
+
+/* =========================
+   INDEX: Glitch UI inputs + borders
+========================= */
+
+:root {
+  --ui-bg: #0d0d0d;
+  --ui-panel: rgba(0, 0, 0, 0.35);
+  --ui-border: rgba(0, 242, 234, 0.22);
+  --ui-border-strong: rgba(0, 242, 234, 0.55);
+  --ui-text: #e5e5e5;
+  --ui-primary: #00f2ea;
+  --ui-secondary: #a855f7;
+}
+
+/* Карточки (если у тебя уже есть glitch-card-ui — аккуратно усилим) */
+.glitch-card-ui {
+  background: linear-gradient(180deg, rgba(10,10,10,0.9), rgba(0,0,0,0.55));
+  border: 1px solid var(--ui-border);
+  box-shadow:
+    0 0 18px rgba(0, 242, 234, 0.08),
+    inset 0 0 0 1px rgba(0,0,0,0.55);
+}
+
+.glitch-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.glitch-card-title {
+  color: var(--ui-primary);
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  font-size: .8rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+/* Поля: рамки + контраст */
+.glitch-input.form-control,
+.glitch-input.form-select,
+.glitch-input textarea,
+textarea.glitch-input,
+input.glitch-input {
+  background: rgba(0,0,0,0.25) !important;
+  color: var(--ui-text) !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: 10px !important;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.6);
+}
+
+.glitch-input.form-control::placeholder,
+textarea.glitch-input::placeholder {
+  color: rgba(229,229,229,0.45);
+}
+
+/* Фокус: понятная рамка + glow */
+.glitch-field:focus-within .glitch-input.form-control,
+.glitch-field:focus-within textarea.glitch-input,
+.glitch-input.form-control:focus,
+textarea.glitch-input:focus {
+  border-color: var(--ui-border-strong) !important;
+  outline: none !important;
+  box-shadow:
+    0 0 0 .2rem rgba(0, 242, 234, 0.12),
+    inset 0 0 0 1px rgba(0,0,0,0.6) !important;
+}
+
+/* Лейблы: делаем “глитч” как на login */
+.glitch-label {
+  display: inline-block;
+  position: relative;
+  color: rgba(0, 242, 234, 0.75) !important;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-size: .75rem;
+  margin-bottom: .45rem;
+}
+
+/* Псевдо-слои для глитча */
+.glitch-field:focus-within .glitch-label::before,
+.glitch-field:focus-within .glitch-label::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  pointer-events: none;
+  background: transparent;
+}
+
+.glitch-field:focus-within .glitch-label::before {
+  color: var(--ui-secondary);
+  animation: glitch-anim 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.glitch-field:focus-within .glitch-label::after {
+  color: var(--ui-primary);
+  animation: glitch-anim 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+}
+
+/* Кнопка "Обзор..." у input[type=file] */
+.glitch-input[type="file"] {
+  padding: 0.45rem 0.75rem !important;
+}
+
+.glitch-input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  border: 1px solid var(--ui-border-strong);
+  background: rgba(0,0,0,0.35);
+  color: var(--ui-primary);
+  border-radius: 10px;
+  padding: 0.35rem 0.75rem;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.glitch-input[type="file"]::file-selector-button:hover {
+  background: rgba(0, 242, 234, 0.12);
+  box-shadow: 0 0 14px rgba(0, 242, 234, 0.12);
+}
+
+/* Блоки типа "Или загрузить своё превью" — чтобы не выбивалось */
+.glitch-panel {
+  background: rgba(0,0,0,0.25) !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: 12px !important;
+}
+
+.glitch-section-title {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(229,229,229,0.9);
+  font-size: .75rem;
+}
+
+/* Галерея: единый стиль плиток */
+#preview_gallery_wrap.gallery-scroll {
+  background: rgba(0,0,0,0.18);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+}
+
+#preview_gallery .col-6,
+#preview_gallery .col-4,
+#preview_gallery .col-3,
+#preview_gallery [class*="col-"] {
+  padding-left: .35rem !important;
+  padding-right: .35rem !important;
+}
+
+/* Если у тебя в JS карточки имеют .preview-card — усилим */
+.preview-card {
+  background: rgba(0,0,0,0.25) !important;
+  border: 1px solid rgba(0,242,234,0.18) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.55);
+}
+
+.preview-card:hover {
+  border-color: rgba(0,242,234,0.45) !important;
+  box-shadow: 0 0 14px rgba(0, 242, 234, 0.10);
+  transform: translateY(-1px);
+}
+
+.preview-img {
+  border-bottom: 1px solid rgba(0,242,234,0.12);
+}
+
+/* Кнопки в галерее */
+.preview-card .btn,
+#preview_gallery .btn {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  border-radius: 10px;
+}
+
+/* На всякий случай: убираем чрезмерно светлые фоновые bootstrap-утилиты */
+.bg-body,
+.bg-body-tertiary {
+  background-color: transparent !important;
+}
+
+
+/* =========================
+   UPLOAD BUTTON (Glitch)
+========================= */
+
+.upload-btn {
+  position: relative;
+  padding: 0.85rem 2.2rem;
+  background: transparent;
+  border: 2px solid #00f2ea;
+  color: #00f2ea;
+
+  font-family: "Fira Code", Consolas, "Courier New", monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 14px;
+
+  box-shadow:
+    0 0 12px rgba(0, 242, 234, 0.18),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.08s ease;
+}
+
+.upload-btn:active {
+  transform: scale(0.97);
+}
+
+.upload-btn .btn-text {
+  position: relative;
+  z-index: 2;
+  transition: opacity 0.2s ease;
+}
+
+/* --- Hover base --- */
+.upload-btn:hover,
+.upload-btn:focus-visible {
+  border-color: #00f2ea;
+  color: #0d0d0d;
+  box-shadow:
+    0 0 28px rgba(0, 242, 234, 0.35),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+
+/* --- HIDE original text --- */
+.upload-btn:hover .btn-text,
+.upload-btn:focus-visible .btn-text {
+  opacity: 0;
+}
+
+/* --- GLITCH LAYERS --- */
+.upload-btn::before,
+.upload-btn::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  pointer-events: none;
+
+  font-family: "Fira Code", Consolas, monospace;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+
+  transition: opacity 0.2s ease;
+}
+
+/* Cyan / Purple split */
+.upload-btn::before {
+  color: #a855f7;
+  background: rgba(0, 242, 234, 0.95);
+}
+
+.upload-btn::after {
+  color: #050505;
+  background: rgba(0, 242, 234, 1);
+}
+
+/* --- ACTIVATE GLITCH --- */
+.upload-btn:hover::before,
+.upload-btn:focus-visible::before {
+  opacity: 1;
+  animation: glitch-anim 0.45s
+    cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.upload-btn:hover::after,
+.upload-btn:focus-visible::after {
+  opacity: 1;
+  animation: glitch-anim 0.45s
+    cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .upload-btn::before,
+  .upload-btn::after {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+
+  .upload-btn:hover .btn-text,
+  .upload-btn:focus-visible .btn-text {
+    opacity: 1;
+  }
+}
+
+
+/* =========================
+   UNIVERSAL GLITCH BUTTON
+========================= */
+
+.glitch-btn {
+  position: relative;
+  overflow: hidden;
+  font-family: "Fira Code", Consolas, monospace;
+  letter-spacing: 0.12em;
+}
+
+/* sizes */
+.glitch-btn--sm {
+  letter-spacing: 0.14em;
+}
+
+.glitch-btn--md {
+  letter-spacing: 0.16em;
+}
+
+.glitch-btn--lg {
+  letter-spacing: 0.22em;
+}
+
+/* hide base text */
+.glitch-btn:hover .btn-text,
+.glitch-btn:focus-visible .btn-text {
+  opacity: 0;
+}
+
+/* layers */
+.glitch-btn::before,
+.glitch-btn::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+/* glitch colors */
+.glitch-btn::before {
+  color: #a855f7;
+}
+
+.glitch-btn::after {
+  color: #00f2ea;
+}
+
+/* activate */
+.glitch-btn:hover::before,
+.glitch-btn:focus-visible::before {
+  opacity: 1;
+  animation: glitch-anim 0.4s both;
+}
+
+.glitch-btn:hover::after,
+.glitch-btn:focus-visible::after {
+  opacity: 1;
+  animation: glitch-anim 0.4s reverse both;
+}
+
+/* accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .glitch-btn::before,
+  .glitch-btn::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .glitch-btn:hover .btn-text {
+    opacity: 1;
+  }
+}
+
+/* =========================
+   FIXED PRIMARY GLITCH BUTTON
+   (Для длинного текста: Заполнить поля...)
+========================= */
+
+/* =========================
+   Theme switch
+========================= */
+.switch {
+  font-size: 17px;
+  position: relative;
+  display: inline-block;
+  width: 3.5em;
+  height: 2em;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  --background: #28096b;
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--background);
+  transition: .5s;
+  border-radius: 30px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 1.4em;
+  width: 1.4em;
+  border-radius: 50%;
+  left: 10%;
+  bottom: 15%;
+  box-shadow: inset 8px -4px 0px 0px #fff000;
+  background: var(--background);
+  transition: .5s;
+}
+
+.switch input:checked + .slider {
+  background-color: #522ba7;
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(100%);
+  box-shadow: inset 15px -4px 0px 15px #fff000;
+}
+
+/* =========================
+   Layout helpers
+========================= */
+.sticky-right {
+  position: sticky;
+  top: 16px;
+}
+
+/* Scroll area for gallery */
+.gallery-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  border: 1px solid rgba(0,0,0,.125);
+  border-radius: .5rem;
+  padding: .5rem;
+  background: var(--bs-body-bg);
+}
+
+/* Card hover in gallery (если ты используешь .preview-card) */
+.preview-card {
+  cursor: pointer;
+  transition: transform .08s ease-in-out, box-shadow .08s ease-in-out;
+}
+
+.preview-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,.12);
+}
+
+.preview-card.selected {
+  outline: 2px solid rgba(13,110,253,.8);
+  outline-offset: 2px;
+}
+
+.preview-img {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+}
+
+/* Minor: nicer background for page */
+body {
+  background: var(--bs-body-bg);
+}
+
+
+.navbar {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+body:not(.dark) .navbar-divider {
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+
+/* Логотип */
+.logo-youtube {
+  color: #ff2c2c; /* YouTube red */
+  font-weight: 700;
+}
+
+.logo-uploader {
+  color: #ff9f1a; /* тёплый оранжевый */
+  font-weight: 700;
+}
+
+/* на всякий случай — чтобы Bootstrap не перебивал */
+.navbar-brand span {
+  letter-spacing: 0.2px;
+}
+
+
+/* Плавная смена темы */
+html, body {
+  transition: background-color .25s ease, color .25s ease;
+}
+
+.navbar,
+.card,
+.form-control,
+.btn,
+.alert,
+.border,
+.progress,
+.progress-bar {
+  transition:
+    background-color .25s ease,
+    color .25s ease,
+    border-color .25s ease,
+    box-shadow .25s ease;
+}
+
+/* Чтобы инпуты/textarea тоже плавно менялись */
+.form-control,
+textarea,
+input,
+select {
+  transition: background-color .25s ease, color .25s ease, border-color .25s ease;
+}
+
+/* Во время переключения темы чуть мягче воспринимается */
+body.theme-animating .card,
+body.theme-animating .navbar,
+body.theme-animating .form-control {
+  transition-duration: .25s;
+}
+
+
+/* */
+
+/*Убрать полосу прокрутки для всей страницы
+body {
+  overflow: hidden;
+}*/
+
+
+/* =========================
+   Тех. детали (JSON)
+========================= */
+
+.tech-json {
+  background-color: #171717;          /* то, что ты хотел */
+  color: #e6e6e6;
+  border-color: rgba(255,255,255,0.12);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+/* для светлой темы — мягкий серый */
+html[data-bs-theme="light"] .tech-json {
+  background-color: #f5f5f5;
+  color: #222;
+  border-color: rgba(0,0,0,0.12);
+}
+
+
+/* =========================
+   LOGIN PAGE (Glitch form)
+========================= */
+
+body.login-page {
+  margin: 0;
+  min-height: 100vh;
+  background: #050505;
+}
+
+/* wrapper занимает весь экран */
+.login-page .glitch-form-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  background-color: #050505;
+  padding: 24px;
+}
+
+/* небольшая подсказка об ошибке */
+.login-error {
+  margin-bottom: 1.8rem;
+  padding: 0.6rem 0.8rem;
+
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  text-align: center;
+
+  color: #ff4d4d;
+  border: 1px solid rgba(255, 77, 77, 0.35);
+  background: rgba(255, 0, 0, 0.05);
+
+  box-shadow:
+    0 0 10px rgba(255, 77, 77, 0.15),
+    inset 0 0 10px rgba(255, 0, 0, 0.25);
+
+  animation: error-flicker 0.15s linear 2;
+}
+
+@keyframes error-flicker {
+  0% { opacity: 1; transform: translateX(0); }
+  25% { opacity: 0.85; transform: translateX(-1px); }
+  50% { opacity: 1; transform: translateX(1px); }
+  75% { opacity: 0.9; transform: translateX(-1px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* ---- ТВОЙ CSS формы (как ты прислал) ---- */
+.glitch-form-wrapper {
+  --bg-color: #0d0d0d;
+  --primary-color: #00f2ea;
+  --secondary-color: #a855f7;
+  --text-color: #e5e5e5;
+  --font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  --glitch-anim-duration: 0.5s;
+}
+
+.glitch-card {
+  background-color: var(--bg-color);
+  width: 100%;
+  max-width: 380px;
+  border: 1px solid rgba(0, 242, 234, 0.2);
+  box-shadow:
+    0 0 20px rgba(0, 242, 234, 0.1),
+    inset 0 0 10px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  margin: 1rem;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 0.5em 1em;
+  border-bottom: 1px solid rgba(0, 242, 234, 0.2);
+}
+
+.card-title {
+  color: var(--primary-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.card-title svg {
+  width: 1.2em;
+  height: 1.2em;
+  stroke: var(--primary-color);
+}
+
+.card-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #333;
+  margin-left: 5px;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+.form-group {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.form-label-login {
+  position: absolute;
+  top: 0.75em;
+  left: 0;
+  font-size: 1rem;
+  color: var(--primary-color);
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.form-group input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid rgba(0, 242, 234, 0.3);
+  padding: 0.75em 0;
+  font-size: 1rem;
+  color: var(--text-color);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.form-group input:focus {
+  border-color: var(--primary-color);
+}
+
+.form-group input:focus + .form-label-login,
+.form-group input:not(:placeholder-shown) + .form-label-login {
+  top: -1.2em;
+  font-size: 0.8rem;
+  opacity: 1;
+}
+
+.form-group input:focus + .form-label-login::before,
+.form-group input:focus + .form-label-login::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-color);
+}
+
+.form-group input:focus + .form-label-login::before {
+  color: var(--secondary-color);
+  animation: glitch-anim var(--glitch-anim-duration)
+    cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.form-group input:focus + .form-label-login::after {
+  color: var(--primary-color);
+  animation: glitch-anim var(--glitch-anim-duration)
+    cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+}
+
+@keyframes glitch-anim {
+  0% { transform: translate(0); clip-path: inset(0 0 0 0); }
+  20% { transform: translate(-5px, 3px); clip-path: inset(50% 0 20% 0); }
+  40% { transform: translate(3px, -2px); clip-path: inset(20% 0 60% 0); }
+  60% { transform: translate(-4px, 2px); clip-path: inset(80% 0 5% 0); }
+  80% { transform: translate(4px, -3px); clip-path: inset(30% 0 45% 0); }
+  100% { transform: translate(0); clip-path: inset(0 0 0 0); }
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 0.8em;
+  margin-top: 1rem;
+  background-color: transparent;
+  border: 2px solid var(--primary-color);
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s;
+  overflow: hidden;
+}
+
+.submit-btn:hover,
+.submit-btn:focus {
+  background-color: var(--primary-color);
+  color: var(--bg-color);
+  box-shadow: 0 0 25px var(--primary-color);
+  outline: none;
+}
+
+.submit-btn:active { transform: scale(0.97); }
+
+.submit-btn .btn-text { position: relative; z-index: 1; transition: opacity 0.2s ease; }
+.submit-btn:hover .btn-text { opacity: 0; }
+
+.submit-btn::before,
+.submit-btn::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  background-color: var(--primary-color);
+  transition: opacity 0.2s ease;
+}
+
+.submit-btn:hover::before,
+.submit-btn:focus::before {
+  opacity: 1;
+  color: var(--secondary-color);
+  animation: glitch-anim var(--glitch-anim-duration)
+    cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.submit-btn:hover::after,
+.submit-btn:focus::after {
+  opacity: 1;
+  color: var(--bg-color);
+  animation: glitch-anim var(--glitch-anim-duration)
+    cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-group input:focus + .form-label-login::before,
+  .form-group input:focus + .form-label-login::after,
+  .submit-btn:hover::before,
+  .submit-btn:focus::before,
+  .submit-btn:hover::after,
+  .submit-btn:focus::after {
+    animation: none;
+    opacity: 0;
+  }
+  .submit-btn:hover .btn-text { opacity: 1; }
+}
+
+
+/* =========================
+   GLITCH THEME FOR INDEX
+   (Bootstrap оставляем как сетку)
+========================= */
+
+/* общий фон как у login */
+body {
+  background: #050505 !important;
+  color: #e5e5e5;
+}
+
+/* navbar в стиле логина */
+.glitch-nav {
+  background: rgba(0,0,0,0.35) !important;
+  border-bottom: 1px solid rgba(0, 242, 234, 0.18) !important;
+  box-shadow:
+    0 0 18px rgba(0, 242, 234, 0.06),
+    inset 0 0 10px rgba(0, 0, 0, 0.55);
+}
+
+.glitch-brand {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.glitch-subtitle {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.glitch-logout {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-color: rgba(255, 77, 77, 0.55) !important;
+}
+
+.glitch-logout:hover {
+  box-shadow: 0 0 16px rgba(255, 77, 77, 0.25);
+}
+
+/* карточки в стиле login (glitch-card), но чтобы дружили с Bootstrap */
+.glitch-card-ui {
+  background-color: #0d0d0d !important;
+  border: 1px solid rgba(0, 242, 234, 0.2) !important;
+  border-radius: 0 !important;              /* как терминал */
+  box-shadow:
+    0 0 20px rgba(0, 242, 234, 0.10),
+    inset 0 0 10px rgba(0, 0, 0, 0.55) !important;
+  overflow: hidden;
+}
+
+.glitch-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  background: rgba(0,0,0,0.30) !important;
+  border-bottom: 1px solid rgba(0, 242, 234, 0.2) !important;
+
+  padding: 0.6rem 1rem;
+}
+
+.glitch-card-title {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  color: #00f2ea;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+/* точки как на логине */
+.card-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #333;
+  margin-left: 5px;
+}
+
+/* заголовки внутри card-body */
+.glitch-card-ui .card-title,
+.glitch-card-ui h5,
+.glitch-card-ui .fw-semibold {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* inputs/textarea/select: терминальный стиль */
+.glitch-card-ui .form-control,
+.glitch-card-ui textarea,
+.glitch-card-ui input[type="text"],
+.glitch-card-ui input[type="file"],
+.glitch-card-ui input[type="datetime-local"] {
+  background: transparent !important;
+  color: #e5e5e5 !important;
+  border: none !important;
+  border-bottom: 2px solid rgba(0, 242, 234, 0.28) !important;
+  border-radius: 0 !important;
+  /*padding-left: 0 !important;*/
+  padding-right: 0 !important;
+}
+
+.glitch-card-ui .form-control:focus {
+  box-shadow: none !important;
+  border-bottom-color: rgba(0, 242, 234, 0.9) !important;
+}
+
+/* label / form-text */
+.glitch-card-ui .form-label {
+  color: rgba(0, 242, 234, 0.75) !important;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.glitch-card-ui .form-text,
+.glitch-card-ui .text-muted,
+.glitch-card-ui .small {
+  color: rgba(229,229,229,0.65) !important;
+}
+
+/* кнопки под стиль */
+.glitch-card-ui .btn-primary,
+.glitch-card-ui .btn-success,
+.glitch-card-ui .btn-outline-primary,
+.glitch-card-ui .btn-outline-secondary {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 0 !important;
+}
+
+.glitch-card-ui .btn-primary {
+  background: transparent !important;
+  border: 2px solid rgba(0, 242, 234, 0.9) !important;
+  color: rgba(0, 242, 234, 0.95) !important;
+}
+
+.glitch-card-ui .btn-primary:hover {
+  background: rgba(0, 242, 234, 0.95) !important;
+  color: #0d0d0d !important;
+  box-shadow: 0 0 22px rgba(0, 242, 234, 0.25);
+}
+
+.glitch-card-ui .btn-success {
+  background: transparent !important;
+  border: 2px solid rgba(168, 85, 247, 0.95) !important;
+  color: rgba(168, 85, 247, 0.95) !important;
+}
+
+.glitch-card-ui .btn-success:hover {
+  background: rgba(168, 85, 247, 0.95) !important;
+  color: #0d0d0d !important;
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.25);
+}
+
+.glitch-card-ui .btn-outline-primary {
+  border-color: rgba(0, 242, 234, 0.6) !important;
+  color: rgba(0, 242, 234, 0.9) !important;
+}
+
+.glitch-card-ui .btn-outline-primary:hover {
+  background: rgba(0, 242, 234, 0.12) !important;
+}
+
+/* progress */
+.glitch-card-ui .progress {
+  background: rgba(255,255,255,0.08) !important;
+  border-radius: 0 !important;
+}
+
+.glitch-card-ui .progress-bar {
+  border-radius: 0 !important;
+}
+
+/* блок превью (border rounded bg-body...) — делаем темнее и в тему */
+.glitch-card-ui .border.rounded,
+.glitch-card-ui .bg-body,
+.glitch-card-ui .bg-body-tertiary {
+  background: rgba(0,0,0,0.25) !important;
+  border: 1px solid rgba(0, 242, 234, 0.18) !important;
+  border-radius: 0 !important;
+}
+
+/* галерея */
+.gallery-scroll {
+  border: 1px solid rgba(0, 242, 234, 0.18) !important;
+  border-radius: 0 !important;
+  background: rgba(0,0,0,0.22) !important;
+}
+
+/* JSON поле уже ок, но под общий вид чуть подтянем */
+.tech-json {
+  background-color: #171717 !important;
+  color: #e6e6e6 !important;
+  border-color: rgba(0, 242, 234, 0.18) !important;
+  border-radius: 0 !important;
+}
+
+
+
+/* =========================
+   INDEX: Glitch UI inputs + borders
+========================= */
+
+:root {
+  --ui-bg: #0d0d0d;
+  --ui-panel: rgba(0, 0, 0, 0.35);
+  --ui-border: rgba(0, 242, 234, 0.22);
+  --ui-border-strong: rgba(0, 242, 234, 0.55);
+  --ui-text: #e5e5e5;
+  --ui-primary: #00f2ea;
+  --ui-secondary: #a855f7;
+}
+
+/* Карточки (если у тебя уже есть glitch-card-ui — аккуратно усилим) */
+.glitch-card-ui {
+  background: linear-gradient(180deg, rgba(10,10,10,0.9), rgba(0,0,0,0.55));
+  border: 1px solid var(--ui-border);
+  box-shadow:
+    0 0 18px rgba(0, 242, 234, 0.08),
+    inset 0 0 0 1px rgba(0,0,0,0.55);
+}
+
+.glitch-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.glitch-card-title {
+  color: var(--ui-primary);
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  font-size: .8rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+/* Поля: рамки + контраст */
+.glitch-input.form-control,
+.glitch-input.form-select,
+.glitch-input textarea,
+textarea.glitch-input,
+input.glitch-input {
+  background: rgba(0,0,0,0.25) !important;
+  color: var(--ui-text) !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: 10px !important;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.6);
+}
+
+.glitch-input.form-control::placeholder,
+textarea.glitch-input::placeholder {
+  color: rgba(229,229,229,0.45);
+}
+
+/* Фокус: понятная рамка + glow */
+.glitch-field:focus-within .glitch-input.form-control,
+.glitch-field:focus-within textarea.glitch-input,
+.glitch-input.form-control:focus,
+textarea.glitch-input:focus {
+  border-color: var(--ui-border-strong) !important;
+  outline: none !important;
+  box-shadow:
+    0 0 0 .2rem rgba(0, 242, 234, 0.12),
+    inset 0 0 0 1px rgba(0,0,0,0.6) !important;
+}
+
+/* Лейблы: делаем “глитч” как на login */
+.glitch-label {
+  display: inline-block;
+  position: relative;
+  color: rgba(0, 242, 234, 0.75) !important;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-size: .75rem;
+  margin-bottom: .45rem;
+}
+
+/* Псевдо-слои для глитча */
+.glitch-field:focus-within .glitch-label::before,
+.glitch-field:focus-within .glitch-label::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  pointer-events: none;
+  background: transparent;
+}
+
+.glitch-field:focus-within .glitch-label::before {
+  color: var(--ui-secondary);
+  animation: glitch-anim 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.glitch-field:focus-within .glitch-label::after {
+  color: var(--ui-primary);
+  animation: glitch-anim 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+}
+
+/* Кнопка "Обзор..." у input[type=file] */
+.glitch-input[type="file"] {
+  padding: 0.45rem 0.75rem !important;
+}
+
+.glitch-input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  border: 1px solid var(--ui-border-strong);
+  background: rgba(0,0,0,0.35);
+  color: var(--ui-primary);
+  border-radius: 10px;
+  padding: 0.35rem 0.75rem;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.glitch-input[type="file"]::file-selector-button:hover {
+  background: rgba(0, 242, 234, 0.12);
+  box-shadow: 0 0 14px rgba(0, 242, 234, 0.12);
+}
+
+/* Блоки типа "Или загрузить своё превью" — чтобы не выбивалось */
+.glitch-panel {
+  background: rgba(0,0,0,0.25) !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: 12px !important;
+}
+
+.glitch-section-title {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(229,229,229,0.9);
+  font-size: .75rem;
+}
+
+/* Галерея: единый стиль плиток */
+#preview_gallery_wrap.gallery-scroll {
+  background: rgba(0,0,0,0.18);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+}
+
+#preview_gallery .col-6,
+#preview_gallery .col-4,
+#preview_gallery .col-3,
+#preview_gallery [class*="col-"] {
+  padding-left: .35rem !important;
+  padding-right: .35rem !important;
+}
+
+/* Если у тебя в JS карточки имеют .preview-card — усилим */
+.preview-card {
+  background: rgba(0,0,0,0.25) !important;
+  border: 1px solid rgba(0,242,234,0.18) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.55);
+}
+
+.preview-card:hover {
+  border-color: rgba(0,242,234,0.45) !important;
+  box-shadow: 0 0 14px rgba(0, 242, 234, 0.10);
+  transform: translateY(-1px);
+}
+
+.preview-img {
+  border-bottom: 1px solid rgba(0,242,234,0.12);
+}
+
+/* Кнопки в галерее */
+.preview-card .btn,
+#preview_gallery .btn {
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  border-radius: 10px;
+}
+
+/* На всякий случай: убираем чрезмерно светлые фоновые bootstrap-утилиты */
+.bg-body,
+.bg-body-tertiary {
+  background-color: transparent !important;
+}
+
+
+/* =========================
+   UPLOAD BUTTON (Glitch)
+========================= */
+
+.upload-btn {
+  position: relative;
+  padding: 0.85rem 2.2rem;
+  background: transparent;
+  border: 2px solid #00f2ea;
+  color: #00f2ea;
+
+  font-family: "Fira Code", Consolas, "Courier New", monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 14px;
+
+  box-shadow:
+    0 0 12px rgba(0, 242, 234, 0.18),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+
+  transition:
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.08s ease;
+}
+
+.upload-btn:active {
+  transform: scale(0.97);
+}
+
+.upload-btn .btn-text {
+  position: relative;
+  z-index: 2;
+  transition: opacity 0.2s ease;
+}
+
+/* --- Hover base --- */
+.upload-btn:hover,
+.upload-btn:focus-visible {
+  border-color: #00f2ea;
+  color: #0d0d0d;
+
+  /* Тот самый мощный эффект свечения */
+  box-shadow:
+    0 0 25px #00f2ea,
+    0 0 50px rgba(0, 242, 234, 0.3),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+
+  outline: none;
+}
+
+/* --- HIDE original text --- */
+.upload-btn:hover .btn-text,
+.upload-btn:focus-visible .btn-text {
+  opacity: 0;
+}
+
+/* --- GLITCH LAYERS --- */
+.upload-btn::before,
+.upload-btn::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  pointer-events: none;
+
+  font-family: "Fira Code", Consolas, monospace;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+
+  transition: opacity 0.2s ease;
+}
+
+/* Cyan / Purple split */
+.upload-btn::before {
+  color: #a855f7;
+  background: rgba(0, 242, 234, 0.95);
+}
+
+.upload-btn::after {
+  color: #050505;
+  background: rgba(0, 242, 234, 1);
+}
+
+/* --- ACTIVATE GLITCH --- */
+.upload-btn:hover::before,
+.upload-btn:focus-visible::before {
+  opacity: 1;
+  animation: glitch-anim 0.45s
+    cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.upload-btn:hover::after,
+.upload-btn:focus-visible::after {
+  opacity: 1;
+  animation: glitch-anim 0.45s
+    cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .upload-btn::before,
+  .upload-btn::after {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+
+  .upload-btn:hover .btn-text,
+  .upload-btn:focus-visible .btn-text {
+    opacity: 1;
+  }
+}
+
+
+/* =========================
+   UNIVERSAL GLITCH BUTTON
+========================= */
+
+.glitch-btn {
+  position: relative;
+  overflow: hidden;
+  font-family: "Fira Code", Consolas, monospace;
+  letter-spacing: 0.12em;
+}
+
+/* sizes */
+.glitch-btn--sm {
+  letter-spacing: 0.14em;
+}
+
+.glitch-btn--md {
+  letter-spacing: 0.16em;
+}
+
+.glitch-btn--lg {
+  letter-spacing: 0.22em;
+}
+
+/* hide base text */
+.glitch-btn:hover .btn-text,
+.glitch-btn:focus-visible .btn-text {
+  opacity: 0;
+}
+
+/* layers */
+.glitch-btn::before,
+.glitch-btn::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+/* glitch colors */
+.glitch-btn::before {
+  color: #a855f7;
+}
+
+.glitch-btn::after {
+  color: #00f2ea;
+}
+
+/* activate */
+.glitch-btn:hover::before,
+.glitch-btn:focus-visible::before {
+  opacity: 1;
+  animation: glitch-anim 0.4s both;
+}
+
+.glitch-btn:hover::after,
+.glitch-btn:focus-visible::after {
+  opacity: 1;
+  animation: glitch-anim 0.4s reverse both;
+}
+
+/* accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .glitch-btn::before,
+  .glitch-btn::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .glitch-btn:hover .btn-text {
+    opacity: 1;
+  }
+}
+
+/* =========================
+   FIXED PRIMARY GLITCH BUTTON
+   (Для длинного текста: Заполнить поля...)
+========================= */
+
+.btn.btn-primary.glitch-primary-like-login {
+  position: relative;
+  overflow: hidden;
+  /* Принудительно сбрасываем стандартный синий Bootstrap на твой Cyan или более темный */
+  background-color: #0d6efd; /* Стандартный primary или замени на #0056b3 */
+  border: 2px solid #00f2ea;
+  color: #fff;
+
+  font-family: "Fira Code", Consolas, "Courier New", monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  /* Уменьшаем межсимвольный интервал для длинного текста, чтобы он не вылезал */
+  letter-spacing: 0.22em;
+  font-size: 0.95rem;
+
+  padding: 0.8rem 1.5rem;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+/* Убираем стандартные эффекты Bootstrap при наведении */
+.btn.btn-primary.glitch-primary-like-login:hover,
+.btn.btn-primary.glitch-primary-like-login:focus {
+  background-color: #00f2ea;
+  color: #050505;
+  border-color: #00f2ea;
+  box-shadow: 0 0 20px rgba(0, 242, 234, 0.4);
+}
+
+.btn.btn-primary.glitch-primary-like-login .btn-text {
+  position: relative;
+  z-index: 3;
+  transition: opacity 0.15s ease;
+  /* Чтобы текст не переносился и не ломал кнопку */
+  white-space: nowrap;
+}
+
+.btn.btn-primary.glitch-primary-like-login:hover .btn-text {
+  opacity: 0; /* Скрываем основной текст полностью */
+}
+
+/* Слои глитча */
+.btn.btn-primary.glitch-primary-like-login::before,
+.btn.btn-primary.glitch-primary-like-login::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  z-index: 2;
+  pointer-events: none;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+
+  font-family: "Fira Code", Consolas, "Courier New", monospace;
+  letter-spacing: 0.22em;
+}
+
+/* Слой 1: Пурпурный */
+.btn.btn-primary.glitch-primary-like-login::before {
+  background: #00f2ea;
+  color: #a855f7;
+  /* Смещение для эффекта разрезки */
+  clip-path: inset(0 0 50% 0);
+}
+
+/* Слой 2: Темный/Черный */
+.btn.btn-primary.glitch-primary-like-login::after {
+  background: #00f2ea;
+  color: #050505;
+  clip-path: inset(50% 0 0 0);
+}
+
+/* Активация глитча */
+.btn.btn-primary.glitch-primary-like-login:hover::before {
+  opacity: 1;
+  animation: glitch-anim-primary 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.btn.btn-primary.glitch-primary-like-login:hover::after {
+  opacity: 1;
+  animation: glitch-anim-primary 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse both;
+}
+
+/* Специальная анимация для длинного текста (меньше амплитуда, чтобы читалось) */
+@keyframes glitch-anim-primary {
+  0% { transform: translate(0); }
+  20% { transform: translate(-3px, 1px); }
+  40% { transform: translate(3px, -1px); }
+  60% { transform: translate(-2px, 1px); }
+  80% { transform: translate(2px, -1px); }
+  100% { transform: translate(0); }
+}
+
+/* Фикс для мобилок/тачпадов: убираем глитч если не наведены */
+.btn.btn-primary.glitch-primary-like-login:not(:hover)::before,
+.btn.btn-primary.glitch-primary-like-login:not(:hover)::after {
+  opacity: 0;
+  animation: none;
+}

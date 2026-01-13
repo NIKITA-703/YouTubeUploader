@@ -14,32 +14,27 @@
 </head>
 
 <body>
-<nav class="navbar navbar-expand navbar-dark bg-dark">
+<nav class="navbar navbar-expand navbar-dark bg-dark glitch-nav">
   <div class="container-fluid d-flex align-items-center">
 
     <!-- LEFT -->
     <div class="d-flex align-items-center gap-2">
-      <span class="navbar-brand mb-0 h1">
+      <span class="navbar-brand mb-0 h1 glitch-brand">
         <span class="text-danger">YouTube</span><span class="text-warning">Uploader</span>
       </span>
-      <div class="d-flex align-items-center gap-2">
-        <span class="navbar-text text-secondary">FastAPI + Bootstrap</span>
-      </div>
+      <span class="navbar-text text-secondary glitch-subtitle">SECURE_PANEL // UPLOAD</span>
     </div>
 
     <!-- CENTER -->
-    <div class="mx-auto navbar-player">
-
-    </div>
+    <div class="mx-auto navbar-player"></div>
 
     <!-- RIGHT -->
     <div class="d-flex align-items-center gap-2">
-      <span class="navbar-text text-secondary">Тема</span>
-
-      <label class="switch ms-2">
-        <input id="themeToggle" type="checkbox">
-        <span class="slider"></span>
-      </label>
+      <form method="post" action="/logout" class="m-0">
+        <button type="submit" class="btn btn-outline-danger btn-sm glitch-btn glitch-btn--sm" data-text="LOGOUT">
+          <span class="btn-text">LOGOUT</span>
+        </button>
+      </form>
     </div>
 
   </div>
@@ -47,70 +42,96 @@
 
 <div class="container py-4">
   <div class="row g-4">
+
     <!-- LEFT: form -->
     <div class="col-12 col-lg-7">
-      <div class="card shadow-sm">
+      <div class="card glitch-card-ui">
+
+        <div class="card-header glitch-card-header">
+          <div class="glitch-card-title">
+
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+               viewBox="0 0 24 24" stroke-width="1.5"
+               stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+              <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
+              <path d="M12 11.5a3 3 0 0 0 -3 2.824v1.176a3 3 0 0 0 6 0v-1.176a3 3 0 0 0 -3 -2.824z"></path>
+            </svg>
+
+            UPLOAD_FORM</div>
+          <div class="card-dots"><span></span><span></span><span></span></div>
+        </div>
+
         <div class="card-body">
-          <h5 class="card-title mb-3">Форма загрузки</h5>
 
           <div class="mb-3">
-            <label class="form-label">Выбор видео файла <span class="text-danger">*</span></label>
-            <input id="video_file" class="form-control" type="file" accept="video/*">
+            <label class="form-label glitch-label" data-text="ВЫБОР ВИДЕО ФАЙЛА">
+              Выбор видео файла <span class="text-danger">*</span>
+            </label>
+            <input id="video_file" class="form-control glitch-input" type="file" accept="video/*">
             <div class="form-text">Файл будет загружен на YouTube, потом удалён локально.</div>
 
-            <!-- если прогресс-бар у тебя уже есть - оставь здесь -->
-
             <div id="uploadProgressWrap" class="progress mt-2 d-none" style="height: 18px;">
-              <div id="uploadProgressBar" class="progress-bar" style="width:0%">0%</div>
-            </div>
+                <div id="uploadProgressBar" class="progress-bar" style="width:0%">0%</div>
+              </div>
             </div>
 
-          <div class="mb-3">
-            <label class="form-label">Название видео <span class="text-danger">*</span></label>
-            <input id="title" class="form-control" type="text" maxlength="100" value="{{ default_title }}">
+          <div class="mb-3 glitch-field">
+            <label class="form-label glitch-label" data-text="НАЗВАНИЕ ВИДЕО">
+              Название видео <span class="text-danger">*</span>
+            </label>
+            <input id="title" class="form-control glitch-input" type="text" maxlength="100" value="{{ default_title }}">
             <div class="form-text">YouTube ограничивает title — мы режем до 100 символов.</div>
           </div>
 
-          <div class="d-flex gap-2 mb-3">
-            <button id="fill_btn" type="button" class="btn btn-primary">
-              Заполнить поля (Gemini + превью)
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button id="fill_btn" type="button" class="btn btn-primary glitch-primary-like-login" data-text="ЗАПОЛНИТЬ ПОЛЯ (GEMINI + ПРЕВЬЮ)">
+              <span class="btn-text">ЗАПОЛНИТЬ ПОЛЯ (GEMINI + ПРЕВЬЮ)</span>
             </button>
-            <button id="clear_btn" type="button" class="btn btn-outline-secondary">
-              Очистить поля
+
+            <button id="clear_btn" type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--md" data-text="Очистить">
+              <span class="btn-text">Очистить поля</span>
             </button>
           </div>
 
-          <div class="mb-3">
-            <label class="form-label">Теги (hashtags)</label>
-            <textarea id="hashtags" class="form-control" maxlength="4500" rows="2" placeholder="#TravisScottTypeBeat #FutureTypeBeat ..." ></textarea>
+          <div class="mb-3 glitch-field">
+            <label class="form-label glitch-label" data-text="ТЕГИ (HASHTAGS)">Теги (hashtags) </label>
+            <textarea id="hashtags" class="form-control glitch-input" maxlength="4500" rows="2"
+                      placeholder="#TravisScottTypeBeat #FutureTypeBeat ..."></textarea>
             <div class="form-text">Можно оставить пустым.</div>
 
             <div class="mt-2">
-              <button id="regen_hashtags_btn" type="button" class="btn btn-outline-primary btn-sm"> 🔄 Перегенерировать теги </button>
+              <button id="regen_hashtags_btn" type="button" class="btn btn-outline-primary btn-sm glitch-btn glitch-btn--sm" data-text="ТЕГИ">
+                <span class="btn-text">🔄 Перегенерировать теги</span>
+              </button>
             </div>
-
           </div>
 
-          <div class="mb-3">
-            <label class="form-label">SEO теги (через запятую)</label>
-            <textarea id="seo_tags" class="form-control" maxlength="480" rows="4" placeholder="travis scott type beat, future type beat, ..."></textarea>
-            <div class="form-text">Можно оставить пустым.</div>
+          <div class="mb-3 glitch-field">
+          <label class="form-label glitch-label" data-text="SEO теги (через запятую)">SEO теги (через запятую)</label>
+          <textarea id="seo_tags" class="form-control glitch-input" maxlength="480" rows="4"
+                    placeholder="travis scott type beat, future type beat, ..."></textarea>
+          <div class="form-text">Можно оставить пустым.</div>
 
             <div class="mt-2">
-              <button id="regen_seo_btn" type="button" class="btn btn-outline-primary btn-sm">🔄 Перегенерировать SEO</button>
+              <button id="regen_seo_btn" type="button" class="btn btn-outline-primary btn-sm glitch-btn glitch-btn--sm" data-text="SEO ТЕГИ">
+                <span class="btn-text">🔄 Перегенерировать SEO</span>
+              </button>
             </div>
-
           </div>
 
-          <div class="mb-3">
-            <label class="form-label">Дата/время публикации (МСК, по желанию)</label>
-            <input id="publish_dt" class="form-control" type="datetime-local">
+          <div class="mb-3 glitch-field">
+            <label class="form-label glitch-label" data-text="ДАТА/ВРЕМЯ ПУБЛИКАЦИИ (МСК, по желанию)">
+              Дата/время публикации (МСК, по желанию)
+            </label>
+            <input id="publish_dt" class="form-control glitch-input" type="datetime-local">
             <div class="form-text">Если пусто — видео останется private без расписания.</div>
           </div>
 
-          <div class="d-flex align-items-center gap-3">
-            <button id="upload_btn" type="button" class="btn btn-success btn-lg">
-              Загрузить видео
+          <div class="d-flex align-items-center flex-wrap gap-3">
+            <button id="upload_btn" type="button" class="upload-btn glitch-upload-btn" data-text="ЗАГРУЗИТЬ ВИДЕО">
+              <span class="btn-text">ЗАГРУЗИТЬ ВИДЕО</span>
             </button>
             <div id="status" class="small text-muted"></div>
           </div>
@@ -129,9 +150,25 @@
     <!-- RIGHT: preview + gallery -->
     <div class="col-12 col-lg-5">
       <div class="sticky-right">
-        <div class="card shadow-sm">
+        <div class="card glitch-card-ui">
+
+          <div class="card-header glitch-card-header">
+            <div class="glitch-card-title">
+
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                 viewBox="0 0 24 24" stroke-width="1.5"
+                 stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+                <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
+                <path d="M12 11.5a3 3 0 0 0 -3 2.824v1.176a3 3 0 0 0 6 0v-1.176a3 3 0 0 0 -3 -2.824z"></path>
+              </svg>
+
+              PREVIEW_PANEL</div>
+            <div class="card-dots"><span></span><span></span><span></span></div>
+          </div>
+
           <div class="card-body">
-            <h5 class="card-title mb-3">Превью</h5>
 
             <div class="border rounded bg-body d-flex align-items-center justify-content-center mb-3" style="height: 280px;">
               <img id="preview_img" alt="preview" style="max-width: 100%; max-height: 100%; object-fit: contain;">
@@ -140,25 +177,23 @@
             <input id="preview_filename" type="hidden" />
 
             <div class="d-grid gap-2">
-              <button id="refresh_preview_btn" type="button" class="btn btn-outline-primary">
-                Поменять фото (рандом)
+              <button id="refresh_preview_btn" type="button" class="btn btn-outline-primary glitch-btn glitch-btn--md" data-text="СЛУЧАЙНОЕ ФОТО">
+                <span class="btn-text">Поменять фото (рандом)</span>
               </button>
 
-              <div class="border rounded p-3 bg-body-tertiary">
-                <div class="fw-semibold mb-2">Или загрузить своё превью</div>
-                <input id="preview_file" class="form-control" type="file" accept="image/*">
+              <div class="border rounded p-3 bg-body-tertiary glitch-panel">
+                <div class="fw-semibold mb-2 glitch-section-title">ИЛИ ЗАГРУЗИТЬ СВОЁ ПРЕВЬЮ</div>
+                <input id="preview_file" class="form-control glitch-input" type="file" accept="image/*">
                 <div class="form-text mt-2">Если выберешь файл — он заменит авто-превью.</div>
               </div>
             </div>
-
-
 
             <hr class="my-4"/>
 
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="fw-semibold">Галерея превью</div>
-              <button id="refresh_gallery_btn" type="button" class="btn btn-outline-secondary btn-sm">
-                Обновить
+              <button id="refresh_gallery_btn" type="button" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="ОБНОВИТЬ">
+                <span class="btn-text">Обновить</span>
               </button>
             </div>
 

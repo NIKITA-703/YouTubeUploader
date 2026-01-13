@@ -5,15 +5,12 @@ from dataclasses import dataclass
 
 
 # =========================
-# Channel / content config
+# Channel / content config 💰 Download | Purchase (Untagged): {purchase_link}
 # =========================
 
 DESCRIPTION_TEMPLATE = """{beat_name}
 
-💰 Download | Purchase (Untagged): {purchase_link}
-
-💸 Bulk Deals:
-✔️ Buy 1 Get 1 Free (Add 2 Beats to Cart)
+If you want to buy this beat, message me on Instagram.
 
 ❗ IMPORTANT:
 
@@ -66,7 +63,7 @@ def load_config() -> AppConfig:
 
     default_title = os.getenv(
         "DEFAULT_TITLE",
-        "[BIM BIM BAM BAM] !!DELETE!! Travis Scott x Future x UTOPIA Type Beat [42 42]"
+        "[  ] ... x ... - ... [  ]"
     )
 
     return AppConfig(

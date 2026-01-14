@@ -30,6 +30,25 @@ KNOWN_ARTISTS = [
     "metro boomin",
     "playboi carti",
     "kanye west",
+    "nemzzz",
+    "cash cobain",
+    "lil baby",
+    "21 savage",
+    "obladaet",
+    "southside",
+    "gunna",
+    "yasmi",
+    "mike dean",
+    "yeat",
+    "ken carson",
+    "drake",
+    "partynextdoor",
+    "lil tecca",
+    "markul",
+    "migos",
+    "doomee",
+    "bato",
+    "esdeekid"
 ]
 
 PLAYLISTS = {

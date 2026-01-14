@@ -57,6 +57,7 @@ PLAYLISTS = {
     "metro boomin": "PLWaG8IuGpqXjT5UELOmBJl1dVhWgObUWV",
     "playboi carti": "PLWaG8IuGpqXj3p4bD7Uo_PQtSkj3iKNie",
     "kanye west": "PLWaG8IuGpqXjTl2Il7L3HPePWf-qJy6b8",
+    "Drake": "PLWaG8IuGpqXgHUv3f09hlHuwMhtHE4LyK",
 }
 
 

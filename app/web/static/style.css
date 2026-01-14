@@ -2423,3 +2423,65 @@ textarea.glitch-input:focus {
   color: #a855f7;
   text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
 }
+
+/* =========================
+   GLITCH LIGHTBOX (Zoom)
+========================= */
+
+.glitch-lightbox {
+  display: none; /* Скрыто по умолчанию */
+  position: fixed;
+  z-index: 20000;
+  padding-top: 50px;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(5, 5, 5, 0.95); /* Почти черный фон */
+  backdrop-filter: blur(5px); /* Размытие заднего плана */
+}
+
+.lightbox-content {
+  margin: auto;
+  display: block;
+  max-width: 90%;
+  max-height: 85vh;
+  border: 2px solid #00f2ea;
+  box-shadow: 0 0 30px rgba(0, 242, 234, 0.3);
+  animation: zoom-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes zoom-in {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+#lightbox_caption {
+  margin: auto;
+  display: block;
+  width: 80%;
+  text-align: center;
+  color: #00f2ea;
+  font-family: "Fira Code", monospace;
+  padding: 15px 0;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 35px;
+  color: #00f2ea;
+  font-size: 40px;
+  font-weight: bold;
+  transition: 0.3s;
+  cursor: pointer;
+  z-index: 20001;
+}
+
+.lightbox-close:hover {
+  color: #a855f7;
+  text-shadow: 0 0 10px #a855f7;
+}

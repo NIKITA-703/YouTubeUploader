@@ -29,6 +29,10 @@ const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
 const successSound = new Audio('/static/sounds/success.mp3');
 successSound.volume = 0.5; // Уровень громкости (от 0 до 1)
 
+const lightbox = document.getElementById("glitch-lightbox");
+const lightboxImg = document.getElementById("lightbox_img");
+const lightboxCaption = document.getElementById("lightbox_caption");
+
 function setStatus(msg) {
   if (statusEl) statusEl.textContent = msg || "";
 }
@@ -95,6 +99,7 @@ function renderGallery(items) {
   if (!galleryEl) return;
   galleryEl.innerHTML = "";
 
+
   if (!items || items.length === 0) {
     galleryEl.innerHTML = `<div class="text-muted small">Пока нет превью в папке.</div>`;
     return;
@@ -132,7 +137,6 @@ function renderGallery(items) {
         <img src="${it.url}?t=${Date.now()}" class="card-img-top preview-img" alt="${it.name}">
         <div class="card-body p-2">
           <div class="small text-truncate" title="${it.name}">${it.name}</div>
-          <!-- Добавили класс glitch-primary-like-login, атрибут data-text и span внутри -->
           <button type="button"
                   class="btn btn-sm btn-primary w-100 mt-1 glitch-primary-like-login"
                   data-text="ВЫБРАТЬ">
@@ -146,21 +150,27 @@ function renderGallery(items) {
     const btn = col.querySelector("button");
     const img = col.querySelector("img");
 
-    // кнопка
+    // 1. КНОПКА — по-прежнему ВЫБИРАЕТ фотку для загрузки
     btn.onclick = (e) => {
       e.preventDefault();
-      e.stopPropagation();
+      e.stopPropagation(); // Чтобы клик не ушёл на карточку
       selectPreview(it.name, it.url);
     };
 
-    // клик по карточке
-    card.onclick = () => selectPreview(it.name, it.url);
-
-    // клик по картинке (на всякий)
+    // 2. КАРТИНКА — теперь УВЕЛИЧИВАЕТ (Zoom)
+    img.style.cursor = "zoom-in";
     img.onclick = (e) => {
       e.preventDefault();
-      e.stopPropagation();
-      selectPreview(it.name, it.url);
+      e.stopPropagation(); // Чтобы клик не ушёл на карточку и не выбрал фото
+      openZoom(it.url, it.name); // Вызываем функцию увеличения
+    };
+
+    // 3. КАРТОЧКА (клик по названию или фону) — ВЫБИРАЕТ фотку
+    card.onclick = (e) => {
+      // Проверяем, что кликнули не по картинке (картинка теперь сама по себе)
+      if (e.target !== img) {
+        selectPreview(it.name, it.url);
+      }
     };
 
     galleryEl.appendChild(col);
@@ -206,6 +216,30 @@ regenHashtagsBtn?.addEventListener("click", async () => {
     showError("Ошибка: " + e.message);
   }
 });
+
+function openZoom(src, caption) {
+  lightbox.style.display = "block";
+  lightboxImg.src = src;
+  lightboxCaption.innerHTML = caption || "PREVIEW_ENLARGED";
+  // Отключаем прокрутку страницы при открытом фото
+  document.body.style.overflow = "hidden";
+}
+
+// Закрытие при клике на крестик или на пустую область
+lightbox.onclick = function(e) {
+  if (e.target !== lightboxImg) {
+    lightbox.style.display = "none";
+    document.body.style.overflow = "auto";
+  }
+};
+
+const mainPreviewImg = document.getElementById("preview_img");
+mainPreviewImg.style.cursor = "zoom-in";
+mainPreviewImg.onclick = () => {
+  if (mainPreviewImg.src && !mainPreviewImg.src.includes("data:image")) {
+     openZoom(mainPreviewImg.src, "CURRENT_PREVIEW");
+  }
+};
 
 regenSeoBtn?.addEventListener("click", async () => {
   try {

@@ -223,17 +223,18 @@ PREVIEW_DIR
 web_tmp/
 tmp/
 
+old/
 
 client_secret*.json
 
-delete.css
+old/delete.css
 
-structure.md
+old/structure.md
 
-beat.mp4
+old/beat.mp4
 
-travis.jpg
-drake.jpg
+old/travis.jpg
+old/drake.jpg
 
 photo/
 previews/

@@ -58,7 +58,7 @@ def load_config() -> AppConfig:
 
     default_video_path = os.getenv(
         "DEFAULT_VIDEO_PATH",
-        r"D:\PyCharm\YouTubeUploader\beat.mp4",
+        r"/old/beat.mp4",
     )
 
     default_title = os.getenv(

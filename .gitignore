@@ -225,6 +225,8 @@ tmp/
 
 old/
 
+old/cleanup_media.py
+
 client_secret*.json
 
 photo/

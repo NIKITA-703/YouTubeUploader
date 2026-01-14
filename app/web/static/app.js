@@ -26,6 +26,9 @@ const regenSeoBtn = document.getElementById("regen_seo_btn");
 const galleryEl = document.getElementById("preview_gallery");
 const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
 
+const successSound = new Audio('/static/sounds/success.mp3');
+successSound.volume = 0.5; // Уровень громкости (от 0 до 1)
+
 function setStatus(msg) {
   if (statusEl) statusEl.textContent = msg || "";
 }
@@ -65,6 +68,14 @@ async function safeJson(res) {
 function triggerGlitchToast() {
   const toast = document.getElementById('glitch-toast-container');
 
+  setTimeout(() => {
+      successSound.currentTime = 0;
+      successSound.play().catch(err => {
+          // Браузеры иногда блокируют звук до первого клика пользователя
+          console.log("Звук заблокирован до взаимодействия с сайтом:", err);
+      });
+  }, 100);
+
   // Показываем
   toast.classList.add('show');
 
@@ -73,6 +84,8 @@ function triggerGlitchToast() {
     toast.classList.remove('show');
   }, 4000);
 }
+
+
 
 /* =========================
    GALLERY

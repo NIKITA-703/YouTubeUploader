@@ -62,6 +62,18 @@ async function safeJson(res) {
   }
 }
 
+function triggerGlitchToast() {
+  const toast = document.getElementById('glitch-toast-container');
+
+  // Показываем
+  toast.classList.add('show');
+
+  // Убираем через 4 секунды
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 4000);
+}
+
 /* =========================
    GALLERY
 ========================= */
@@ -463,25 +475,27 @@ uploadBtn?.addEventListener("click", () => {
          </div>`
       : "";
 
-      showSuccessHtml(`
-  <div class="glitch-success-container">
-    <div class="glitch-success-header mb-4">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
-      SYSTEM // UPLOAD_COMPLETE
-    </div>
+  triggerGlitchToast();
 
-    <div class="glitch-success-item"><b>VIDEO_ID:</b> <span class="text-white">${escapeHtml(String(data.video_id || "N/A"))}</span></div>
+  showSuccessHtml(`
+      <div class="glitch-success-container">
+        <div class="glitch-success-header mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          SYSTEM // UPLOAD_COMPLETE
+      </div>
 
-    <div class="glitch-success-item"><b>SCHEDULE:</b> <span class="text-white">${publishText}</span></div>
+      <div class="glitch-success-item"><b>VIDEO_ID:</b> <span class="text-white">${escapeHtml(String(data.video_id || "N/A"))}</span></div>
 
-    ${url ? `
-      <div class="glitch-success-item">
-        <b>ACCESS_URL:</b>
-        <a href="${url}" target="_blank" rel="noreferrer" class="glitch-success-link">${escapeHtml(url)}</a>
-      </div>` : ""
-    }
+      <div class="glitch-success-item"><b>SCHEDULE:</b> <span class="text-white">${publishText}</span></div>
+
+       ${url ? `
+          <div class="glitch-success-item">
+            <b>ACCESS_URL:</b>
+            <a href="${url}" target="_blank" rel="noreferrer" class="glitch-success-link">${escapeHtml(url)}</a>
+          </div>` : ""
+       }
 
     <div class="glitch-success-item mt-3">
       <b>TARGET_PLAYLISTS:</b>

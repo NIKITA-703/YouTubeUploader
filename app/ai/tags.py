@@ -1,6 +1,7 @@
 import json
 import re
 import os
+import datetime
 from typing import List, Dict, Any
 
 from google import genai
@@ -12,8 +13,8 @@ from app.config import KNOWN_ARTISTS
 # YouTube: теги (keywords) имеют ограничения по длине.
 # Безопасно держать общий объём <= 450–480 символов.
 YOUTUBE_TAGS_MAX_TOTAL_CHARS = 460
-MAX_HASHTAGS = 12
-MAX_SEO_TAGS = 18
+MAX_HASHTAGS = 3
+MAX_SEO_TAGS = 15
 
 
 def _normalize_space(s: str) -> str:
@@ -90,8 +91,21 @@ def generate_youtube_tags(
 
     artists = _extract_artists_from_title(beat_name)
 
+    # Список разрешенных артистов для контекста
+    valid_artists = [
+        "travis scott", "future", "metro boomin", "playboi carti", "kanye west",
+        "nemzzz", "cash cobain", "lil baby", "21 savage", "obladaet", "southside",
+        "gunna", "yasmi", "mike dean", "yeat", "ken carson", "drake", "partynextdoor",
+        "lil tecca", "markul", "migos", "doomee", "bato", "esdeekid"
+    ]
+
+    # Определяем текущий год (в твоем случае жестко 2026)
+    current_year = datetime.datetime.now().year
+
     system_instruction = (
-        "Ты генерируешь SEO-данные для YouTube (музыкальные type beat видео). "
+        "Ты — эксперт по YouTube SEO для музыкальных продюсеров. "
+        "Твоя задача: генерировать метаданные для Type Beat видео. "
+        f"ВАЖНО: Если ты используешь год в тегах, это должен быть ТОЛЬКО {current_year}. "
         "Верни ТОЛЬКО валидный JSON по схеме. Никакого текста, пояснений, markdown."
     )
 
@@ -101,49 +115,39 @@ def generate_youtube_tags(
             "hashtags": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Хэштеги в стиле #TravisScottTypeBeat. Только хэштеги."
+                "description": f"Ровно 3 хэштега с решеткой #. Год если есть - {current_year}. Пример: #TravisScottTypeBeat"
             },
             "seo_tags": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "YouTube keywords без решёток. Короткие фразы: 'Travis Scott type beat', 'UTOPIA type beat' и т.п."
+                "description": f"Ровно 15 SEO фраз без решеток. Год если есть - {current_year}. Короткие фразы."
             },
             "artists": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Артисты, которые упоминаются в названии"
+                "description": "Артисты, найденные в названии"
             }
         },
         "required": ["hashtags", "seo_tags", "artists"]
     }
 
     prompt = {
-        "title": beat_name,
-        "artists_detected": artists,
-        "rules": {
+        "action": "Generate metadata",
+        "video_title": beat_name,
+        "context_valid_artists": valid_artists,
+        "constraints": {
             "hashtags": {
-                "language": "en",
-                "count_target": 8,
-                "must_include_if_present": [
-                    "TravisScottTypeBeat",
-                    "FutureTypeBeat",
-                    "MetroBoominTypeBeat",
-                    "PlayboiCartiTypeBeat",
-                    "KanyeWestTypeBeat",
-                    "UTOPIATypeBeat",
-                    "TypeBeat",
-                    "TrapTypeBeat"
-                ],
-                "avoid": ["#shorts", "#viral", "#fyp", "#tiktok"]
+                "count": 3,
+                "format": "CamelCaseWithHash",
+                "include_year": current_year
             },
             "seo_tags": {
-                "language": "en",
-                "count_target": 14,
-                "include_variations": True,
-                "avoid": ["free download", "mp3 download", "leak"]
+                "count": 15,
+                "format": "Natural Language",
+                "include_year": current_year,
+                "suggestions": ["type beat", "instrumental", "hard", "free"]
             }
-        },
-        "output": "Return JSON only."
+        }
     }
 
     resp = client.models.generate_content(

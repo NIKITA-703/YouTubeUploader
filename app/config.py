@@ -8,23 +8,34 @@ from dataclasses import dataclass
 # Channel / content config
 # =========================
 
-DESCRIPTION_TEMPLATE = """{beat_name}
+DESCRIPTION_TEMPLATE = """
+👉 Buy this beat: {purchase_link}
+Instant download • Safe monetization • Official release ready
 
-💰 Download | Purchase (Untagged): {purchase_link}
+BPM: {bpm}
+Key: {key}
+
+For streaming platforms, monetization and official releases,
+choose Unlimited License.
+
+––––––––––––––––––
 
 💸 Bulk Deals:
 ✔️ Buy 1 Get 1 Free (Add 2 Beats to Cart)
 
+––––––––––––––––––
+
 ❗ IMPORTANT:
+For any use, a valid license must be purchased.
+Producer credit is required: (Prod. by Kellmi)
 
-For any use you MUST purchase a lease.
-You always have to credit (Prod. by Kellmi)
 
-Instagram: https://www.instagram.com/kellmibeats
-Telegram: t.me/k3lm1
-Mail: kellmibeats@gmail.com
+
+
 
 {tags}
+
+
 """
 
 KNOWN_ARTISTS = [
@@ -86,7 +97,7 @@ def load_config() -> AppConfig:
 
     default_title = os.getenv(
         "DEFAULT_TITLE",
-        "[TEXT] ARTIST x ARTIST TYPE BEAT - NAME_BEAT [TEXT]"
+        "АРТИСТ x АРТИСТ Type Beat – “Safety” | Beat Switch | 2026"
     )
 
     return AppConfig(

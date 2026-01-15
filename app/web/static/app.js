@@ -24,6 +24,9 @@ const regenSeoBtn = document.getElementById("regen_seo_btn");
 
 const purchaseLinkEl = document.getElementById("purchase_link");
 
+const bpmEl = document.getElementById("bpm");
+const keyEl = document.getElementById("key");
+
 // gallery
 const galleryEl = document.getElementById("preview_gallery");
 const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
@@ -299,8 +302,9 @@ fillBtn?.addEventListener("click", async () => {
 
     const fd = new FormData();
     fd.append("title", title);
-
     fd.append("purchase_link", (purchaseLinkEl.value || "").trim());
+    fd.append("bpm", bpmEl.value);
+    fd.append("key", keyEl.value);
 
     const res = await fetch("/api/fill", { method: "POST", body: fd });
     const parsed = await safeJson(res);
@@ -423,6 +427,8 @@ uploadBtn?.addEventListener("click", () => {
     fd.append("hashtags", hashtagsEl?.value || "");
     fd.append("seo_tags", seoEl?.value || "");
     fd.append("publish_dt_local", publishEl?.value || "");
+    fd.append("bpm", bpmEl.value);
+    fd.append("key", keyEl.value);
 
     // превью
     if (previewFileEl?.files && previewFileEl.files.length > 0) {

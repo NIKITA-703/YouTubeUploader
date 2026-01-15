@@ -71,7 +71,7 @@ def api_gen_preview(title: str = Form(...)):
 
 
 @router.post("/fill")
-def api_fill(title: str = Form(...)):
+def api_fill(title: str = Form(...), purchase_link: str = Form("https://www.beatstars.com/kellmibeats")):
     """
     Заполнить поля:
     - Gemini hashtags + seo_tags
@@ -91,13 +91,14 @@ def api_fill(title: str = Form(...)):
     hashtags = ai.get("hashtags", [])
     seo_tags = ai.get("seo_tags", [])
 
-    description = build_description(title, hashtags)
+    description = build_description(title, hashtags, purchase_link)
 
     preview_path = download_thumbnail_for_beat(title)
     preview_url = f"/previews/{preview_path.name}"
 
     return {
         "title": title,
+        "purchase_link": purchase_link,
         "hashtags": " ".join(hashtags),
         "seo_tags": ", ".join(seo_tags),
         "description": description,
@@ -123,6 +124,7 @@ def api_preview_refresh(title: str = Form(...)):
 @router.post("/upload")
 def api_upload(
     title: str = Form(...),
+    purchase_link: str = Form("https://www.beatstars.com/kellmibeats"),
     hashtags: str = Form(""),
     seo_tags: str = Form(""),
     publish_dt_local: str = Form(""),  # datetime-local (опционально)
@@ -186,6 +188,7 @@ def api_upload(
             youtube=youtube,
             media_file=str(video_path),
             beat_name=title,
+            purchase_link_override=purchase_link,
             gemini_api_key=cfg.gemini_api_key,
             hashtags_override=hashtags_override,
             seo_tags_override=seo_override,

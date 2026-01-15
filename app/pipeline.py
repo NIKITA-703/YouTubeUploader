@@ -105,6 +105,7 @@ def upload_flow_web(
     media_file: str,
     beat_name: str,
     gemini_api_key: str,
+    purchase_link_override: str = "https://www.beatstars.com/kellmibeats",
     hashtags_override: Optional[list[str]] = None,
     seo_tags_override: Optional[list[str]] = None,
     publish_at_override: Optional[str] = None,  # RFC3339 UTC
@@ -139,7 +140,7 @@ def upload_flow_web(
             seo_tags = ["Type Beat", "Trap Type Beat", "Rap Beat"]
 
     # 2) Описание
-    description = build_description(beat_name, hashtags)
+    description = build_description(beat_name, hashtags, purchase_link_override)
 
     # 3) Schedule
     publish_at = publish_at_override  # уже UTC RFC3339, либо None

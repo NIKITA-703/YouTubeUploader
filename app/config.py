@@ -5,12 +5,15 @@ from dataclasses import dataclass
 
 
 # =========================
-# Channel / content config 💰 Download | Purchase (Untagged): {purchase_link}
+# Channel / content config
 # =========================
 
 DESCRIPTION_TEMPLATE = """{beat_name}
 
-If you want to buy this beat, message me on Instagram.
+💰 Download | Purchase (Untagged): {purchase_link}
+
+💸 Bulk Deals:
+✔️ Buy 1 Get 1 Free (Add 2 Beats to Cart)
 
 ❗ IMPORTANT:
 

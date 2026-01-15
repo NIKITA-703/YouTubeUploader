@@ -22,6 +22,8 @@ const uploadProgressBar = document.getElementById("uploadProgressBar");
 const regenHashtagsBtn = document.getElementById("regen_hashtags_btn");
 const regenSeoBtn = document.getElementById("regen_seo_btn");
 
+const purchaseLinkEl = document.getElementById("purchase_link");
+
 // gallery
 const galleryEl = document.getElementById("preview_gallery");
 const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
@@ -298,6 +300,8 @@ fillBtn?.addEventListener("click", async () => {
     const fd = new FormData();
     fd.append("title", title);
 
+    fd.append("purchase_link", (purchaseLinkEl.value || "").trim());
+
     const res = await fetch("/api/fill", { method: "POST", body: fd });
     const parsed = await safeJson(res);
 
@@ -415,11 +419,12 @@ uploadBtn?.addEventListener("click", () => {
 
     const fd = new FormData();
     fd.append("title", title);
+    fd.append("purchase_link", (purchaseLinkEl.value || "").trim());
     fd.append("hashtags", hashtagsEl?.value || "");
     fd.append("seo_tags", seoEl?.value || "");
     fd.append("publish_dt_local", publishEl?.value || "");
 
-    // превью: ручной файл > выбранное авто-превью
+    // превью
     if (previewFileEl?.files && previewFileEl.files.length > 0) {
       fd.append("preview_file", previewFileEl.files[0]);
     } else {
@@ -431,27 +436,15 @@ uploadBtn?.addEventListener("click", () => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload", true);
 
-    // 🔥 ПРОГРЕСС ЗАГРУЗКИ (браузер -> твой сервер)
     xhr.upload.onprogress = (e) => {
       if (!e.lengthComputable) return;
       const percent = Math.round((e.loaded / e.total) * 100);
 
       if (uploadProgressBar) {
         uploadProgressBar.style.width = percent + "%";
-        uploadProgressBar.textContent = percent + "%";
+        uploadProgressBar.textContent = percent + "%"; // Текст теперь будет черным на голубом
       }
-
       setStatus(`Загружаю видео… ${percent}%`);
-      if (percent >= 100) {
-        // дальше уже работа сервера (YouTube upload / плейлисты / превью)
-        setStatus("Видео отправлено на сервер. Загружаю на YouTube…");
-      }
-    };
-
-    xhr.onerror = () => {
-      uploadProgressWrap?.classList.add("d-none");
-      setStatus("Ошибка");
-      showError("Ошибка сети при загрузке");
     };
 
     xhr.onload = () => {

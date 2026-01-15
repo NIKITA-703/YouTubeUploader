@@ -2485,3 +2485,58 @@ textarea.glitch-input:focus {
   color: #a855f7;
   text-shadow: 0 0 10px #a855f7;
 }
+
+
+/* =========================
+   GLITCH PROGRESS BAR
+========================= */
+
+/* Контейнер (обертка) */
+.glitch-progress-wrap {
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(0, 242, 234, 0.3) !important;
+  border-radius: 0 !important; /* Убираем скругления */
+  height: 24px !important;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Сама полоса загрузки */
+.glitch-progress-bar {
+  background-color: #00f2ea !important;
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  ) !important;
+  background-size: 40px 40px !important;
+
+  /* Свечение */
+  box-shadow: 0 0 15px #00f2ea;
+
+  /* Текст внутри */
+  color: #050505 !important;
+  font-family: "Fira Code", monospace;
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+
+  /* Плавное движение полосы */
+  transition: width 0.3s ease;
+
+  /* Анимация "бегущих полосок" */
+  animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+  from { background-position: 40px 0; }
+  to { background-position: 0 0; }
+}

@@ -17,4 +17,3 @@ def index(request: Request):
         "index.html",
         {"request": request, "default_title": cfg.default_title},
     )
-

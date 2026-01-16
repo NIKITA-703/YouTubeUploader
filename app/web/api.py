@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 import traceback
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status, FastAPI
@@ -17,6 +19,11 @@ from app.web.common import PREVIEW_DIR, WEB_TMP_DIR
 from app.web.utils import normalize_hashtags, normalize_seo_tags, parse_dt_local_msk_to_publish_at
 from app.web.youtube_client import get_youtube_client
 from app.config import load_config, PLAYLISTS
+from app.youtube import authenticate_youtube
+
+from datetime import date, timedelta
+
+from googleapiclient.discovery import build
 
 router = APIRouter(prefix="/api")
 
@@ -125,37 +132,6 @@ def api_preview_refresh(title: str = Form(...)):
     preview_path = download_thumbnail_for_beat(title)
     preview_url = f"/previews/{preview_path.name}"
     return {"preview_url": preview_url, "preview_filename": preview_path.name}
-
-
-@router.get("/stats/dashboard")
-def get_dashboard_stats():
-    try:
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row  # Чтобы получить данные как словарь
-        cursor = conn.cursor()
-
-        # 1. Общее кол-во видео
-        cursor.execute("SELECT COUNT(*) as total FROM videos")
-        total_count = cursor.fetchone()['total']
-
-        # 2. Топ-3 видео по просмотрам
-        cursor.execute("SELECT title, views, video_id FROM videos ORDER BY views DESC LIMIT 3")
-        top_videos = [dict(row) for row in cursor.fetchall()]
-
-        # 3. Последние 5 загрузок
-        cursor.execute("SELECT title, views, upload_date FROM videos ORDER BY upload_date DESC LIMIT 5")
-        recent_videos = [dict(row) for row in cursor.fetchall()]
-
-        conn.close()
-
-        return {
-            "ok": True,
-            "total_count": total_count,
-            "top_videos": top_videos,
-            "recent_videos": recent_videos
-        }
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
 
 
 @router.post("/upload")

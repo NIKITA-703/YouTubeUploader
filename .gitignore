@@ -226,6 +226,7 @@ tmp/
 old/
 
 client_secret*.json
+token.json
 
 photo/
 previews/

@@ -69,3 +69,20 @@ def get_best_tags(limit=20):
 
     # Возвращаем уникальные теги (оставляем самые популярные)
     return list(set(all_tags))[:limit]
+
+
+def get_ai_knowledge_base():
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # Берем топ-15, чтобы ИИ мог найти совпадения по конкретным артистам
+    cursor.execute('''
+        SELECT title, seo_tags, views 
+        FROM videos 
+        WHERE views > 2 
+        ORDER BY views DESC LIMIT 15
+    ''')
+    best_performers = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return best_performers

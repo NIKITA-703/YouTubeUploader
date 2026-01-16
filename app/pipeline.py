@@ -10,6 +10,7 @@ from app.ai.tags import generate_youtube_tags
 from app.content.description import build_description
 from app.content.schedule import ask_publish_at
 from app.media.preview_fetch import download_thumbnail_for_beat
+from app.database import add_video_to_db
 
 from app.youtube.videos import upload_video_file, set_preview
 from app.youtube.playlists import add_video_to_detected_playlists
@@ -142,7 +143,7 @@ def upload_flow_web(
             seo_tags = ["Type Beat", "Trap Type Beat", "Rap Beat"]
 
     # 2) Описание
-    description = build_description(beat_name, hashtags, purchase_link_override, bpm=bpm, key=key)
+    description = build_description(beat_name, hashtags, purchase_link_override, bpm, key)
 
     # 3) Schedule
     publish_at = publish_at_override  # уже UTC RFC3339, либо None
@@ -191,6 +192,13 @@ def upload_flow_web(
         warnings.append(f"playlists failed: {e}")# удалить
         playlist_ids = []# удалить
         print("PLAYLIST ERROR:", repr(e))# удалить
+
+    add_video_to_db(
+        video_id=video_id,
+        title=beat_name,
+        hashtags=hashtags,  # список строк
+        seo_tags=seo_tags  # список строк
+    )
 
     return UploadResult(
         video_id=video_id,

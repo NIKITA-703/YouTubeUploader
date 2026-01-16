@@ -5,7 +5,9 @@ import googleapiclient.discovery
 
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
-    "https://www.googleapis.com/auth/youtube"
+    "https://www.googleapis.com/auth/youtube",
+    "https://www.googleapis.com/auth/youtube.readonly",    # Просмотр данных канала
+    "https://www.googleapis.com/auth/yt-analytics.readonly",  #  Статистика
 ]
 
 
@@ -31,4 +33,4 @@ def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
     youtube = googleapiclient.discovery.build(
         "youtube", "v3", credentials=credentials)
 
-    return youtube
+    return youtube, credentials

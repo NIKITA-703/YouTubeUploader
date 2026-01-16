@@ -27,7 +27,8 @@ def main():
         r"D:\PyCharm\YouTubeUploader\client_secret.apps.googleusercontent.com.json"
     )
 
-    youtube = authenticate_youtube(client_secret_path)
+    service, credentials = authenticate_youtube(client_secret_path)
+    youtube = service
 
     if args.dry_run:
         print("✅ Auth OK. DRY-RUN включён: видео загружаться НЕ будет.")

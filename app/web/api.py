@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import sqlite3
 import traceback
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status, FastAPI
 from fastapi.responses import JSONResponse
 
 from app.ai.tags import generate_youtube_tags
 from app.content.description import build_description
+from app.database import DB_PATH
 from app.media.preview_fetch import download_thumbnail_for_beat
 from app.pipeline import upload_flow_web
 from app.web.common import PREVIEW_DIR, WEB_TMP_DIR
@@ -123,6 +125,37 @@ def api_preview_refresh(title: str = Form(...)):
     preview_path = download_thumbnail_for_beat(title)
     preview_url = f"/previews/{preview_path.name}"
     return {"preview_url": preview_url, "preview_filename": preview_path.name}
+
+
+@router.get("/stats/dashboard")
+def get_dashboard_stats():
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row  # Чтобы получить данные как словарь
+        cursor = conn.cursor()
+
+        # 1. Общее кол-во видео
+        cursor.execute("SELECT COUNT(*) as total FROM videos")
+        total_count = cursor.fetchone()['total']
+
+        # 2. Топ-3 видео по просмотрам
+        cursor.execute("SELECT title, views, video_id FROM videos ORDER BY views DESC LIMIT 3")
+        top_videos = [dict(row) for row in cursor.fetchall()]
+
+        # 3. Последние 5 загрузок
+        cursor.execute("SELECT title, views, upload_date FROM videos ORDER BY upload_date DESC LIMIT 5")
+        recent_videos = [dict(row) for row in cursor.fetchall()]
+
+        conn.close()
+
+        return {
+            "ok": True,
+            "total_count": total_count,
+            "top_videos": top_videos,
+            "recent_videos": recent_videos
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 @router.post("/upload")

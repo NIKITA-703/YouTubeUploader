@@ -16,5 +16,8 @@ def get_youtube_client():
         "YOUTUBE_CLIENT_SECRET",
         r"client_secret.apps.googleusercontent.com.json",
     )
-    _youtube = authenticate_youtube(client_secret_path)
+
+    service, credentials = authenticate_youtube(client_secret_path)
+    _youtube = service
+
     return _youtube

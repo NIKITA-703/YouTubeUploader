@@ -2,21 +2,32 @@ from __future__ import annotations
 
 import os
 import logging
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.database import init_db
 from app.web.common import mount_static
 from app.web.auth import AuthGuardMiddleware, validate_auth_env
 from app.web import pages, api, auth
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Этот код сработает ПРИ СТАРТЕ сервера
+    print("--- SERVER STARTING ---")
+    init_db()
+    yield
+    # Этот код сработает ПРИ ОСТАНОВКЕ
+    print("--- SERVER SHUTTING DOWN ---")
+
+
+# 2. Функция создания приложения
 def create_app() -> FastAPI:
     load_dotenv(override=True)
-
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("web")
 
     validate_auth_env()
 
@@ -24,27 +35,29 @@ def create_app() -> FastAPI:
     if not session_secret:
         raise RuntimeError("SESSION_SECRET не задан в .env")
 
-    app = FastAPI()
+    # ВАЖНО: Мы создаем ОДНО приложение и передаем ему lifespan
+    app = FastAPI(lifespan=lifespan)
 
-    # 1) СНАЧАЛА добавляем AuthGuard (он станет внутренним)
+    # Middleware
     app.add_middleware(AuthGuardMiddleware)
-
-    # 2) ПОТОМ добавляем SessionMiddleware (он станет внешним и выполнится первым)
     app.add_middleware(
         SessionMiddleware,
         secret_key=session_secret,
         session_cookie="uploader_session",
         same_site="lax",
-        https_only=False,  # на VPS с HTTPS поставишь True
+        https_only=False,
     )
 
     mount_static(app)
 
-    app.include_router(auth.router)   # /login, /logout
-    app.include_router(pages.router)  # /
-    app.include_router(api.router)    # /api/*
+    # Подключаем роутеры
+    app.include_router(auth.router)
+    app.include_router(pages.router)
+    app.include_router(api.router)
 
     return app
 
 
 app = create_app()
+
+

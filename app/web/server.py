@@ -45,7 +45,7 @@ def create_app() -> FastAPI:
         secret_key=session_secret,
         session_cookie="uploader_session",
         same_site="lax",
-        https_only=False,
+        https_only=True,
     )
 
     mount_static(app)

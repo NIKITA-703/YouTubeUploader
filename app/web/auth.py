@@ -70,6 +70,7 @@ def login_submit(
         request.session["has_beatstars"] = bool(user['has_beatstars'])
 
         # Можем даже сохранить контакты, чтобы потом строить описание
+        request.session["display_name"] = user['display_name']
         request.session["user_email"] = user['email']
         request.session["user_insta"] = user['instagram']
         request.session["user_tg"] = user['telegram']

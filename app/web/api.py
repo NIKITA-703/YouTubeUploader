@@ -8,8 +8,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+from fastapi import Request
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status, FastAPI
 from fastapi.responses import JSONResponse
+from pyasn1_modules.rfc1157 import RequestID
 from starlette.responses import HTMLResponse
 from app.ai.tags import generate_youtube_tags
 from app.content.description import build_description
@@ -81,10 +83,11 @@ def api_gen_preview(title: str = Form(...)):
 
 
 @router.post("/fill")
-def api_fill(title: str = Form(...),
+def api_fill(request: Request,
+             title: str = Form(""),
              purchase_link: str = Form("https://www.beatstars.com/kellmibeats"),
-             bpm: str = Form(...),
-             key: str = Form(...),
+             bpm: str = Form(""),
+             key: str = Form(""),
              ):
     """
     Заполнить поля:
@@ -105,7 +108,24 @@ def api_fill(title: str = Form(...),
     hashtags = ai.get("hashtags", [])
     seo_tags = ai.get("seo_tags", [])
 
-    description = build_description(title, hashtags, purchase_link, bpm, key)
+    # Собираем инфу о юзере из сессии
+    user_session_data = {
+        "username": request.session.get("username"),
+        "display_name": request.session.get("display_name"),
+        "email": request.session.get("user_email"),
+        "instagram": request.session.get("user_insta"),
+        "telegram": request.session.get("user_tg"),
+        "has_beatstars": request.session.get("has_beatstars")
+    }
+
+    # Вызываем билд описания (теперь с юзером!)
+    description = build_description(
+        tags=hashtags,
+        purchase_link=purchase_link,
+        bpm=bpm,
+        key=key,
+        user=user_session_data
+    )
 
     preview_path = download_thumbnail_for_beat(title)
     preview_url = f"/previews/{preview_path.name}"

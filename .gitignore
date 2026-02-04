@@ -225,6 +225,8 @@ tmp/
 
 old/
 
+*.db
+
 client_secret*.json
 token.json
 create_users.py

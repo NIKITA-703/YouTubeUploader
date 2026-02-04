@@ -8,35 +8,6 @@ from dataclasses import dataclass
 # Channel / content config
 # =========================
 
-DESCRIPTION_TEMPLATE = """
-👉 Buy this beat: {purchase_link}
-FREE for non-profit use • Purchase license for monetization
-
-BPM: {bpm}
-Key: {key}
-
-For streaming platforms, monetization and official releases,
-choose Unlimited License.
-
-––––––––––––––––––
-
-💸 Bulk Deals:
-✔️ Buy 1 Get 1 Free (Add 2 Beats to Cart)
-
-––––––––––––––––––
-
-❗ IMPORTANT:
-For any use, a valid license must be purchased.
-Producer credit is required: (Prod. by Kellmi)
-
-
-
-
-
-{tags}
-
-
-"""
 
 KNOWN_ARTISTS = [
     "travis scott",
@@ -83,9 +54,8 @@ PLAYLISTS = {
 @dataclass(frozen=True)
 class AppConfig:
     gemini_api_key: str
-
     default_video_path: str
-    default_title: str
+    default_title_template: str
 
 
 def load_config() -> AppConfig:
@@ -98,11 +68,11 @@ def load_config() -> AppConfig:
 
     default_title = os.getenv(
         "DEFAULT_TITLE",
-        "[FREE] АРТИСТ x АРТИСТ Type Beat – “НАЗВАНИЕ” | ЧТО_УГОДНО 2026"
+        "[FREE] АРТИСТ x АРТИСТ TYPE BEAT - НАЗВАНИЕ (prod. {display_name})"
     )
 
     return AppConfig(
         gemini_api_key=gemini_api_key,
         default_video_path=default_video_path,
-        default_title=default_title,
+        default_title_template=default_title,
     )

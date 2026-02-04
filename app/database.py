@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(__file__).resolve().parents[1]
 DB_PATH = BASE_DIR / "youtube_stats.db"
 
 
@@ -28,6 +28,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE,
+                display_name TEXT,
                 password_hash TEXT,
                 email TEXT,
                 instagram TEXT,

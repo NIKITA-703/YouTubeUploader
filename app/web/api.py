@@ -157,6 +157,7 @@ def api_preview_refresh(title: str = Form(...)):
 
 @router.post("/upload")
 def api_upload(
+    request: Request,
     title: str = Form(...),
     purchase_link: str = Form("https://www.beatstars.com/kellmibeats"),
     hashtags: str = Form(""),
@@ -219,6 +220,15 @@ def api_upload(
             if p.exists():
                 preview_path_override = str(p)
 
+        user_session_data = {
+            "username": request.session.get("username"),
+            "display_name": request.session.get("display_name"),
+            "email": request.session.get("user_email"),
+            "instagram": request.session.get("user_insta"),
+            "telegram": request.session.get("user_tg"),
+            "has_beatstars": request.session.get("has_beatstars")
+        }
+
         # 4. ЗАГРУЗКА НА YOUTUBE
         youtube = get_youtube_client()
         result = upload_flow_web(
@@ -227,6 +237,7 @@ def api_upload(
             beat_name=title,
             bpm=bpm,
             key=key,
+            user_data=user_session_data,
             purchase_link_override=purchase_link,
             gemini_api_key=cfg.gemini_api_key,
             hashtags_override=hashtags_list,

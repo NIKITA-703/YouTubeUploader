@@ -35,7 +35,7 @@ License required for monetization and official releases
 
 def build_description(tags: list[str], purchase_link: str, bpm: str, key: str, user: dict) -> str:
     # Определяем ссылку: если Beatstars нет, пишем username.music
-    final_link = purchase_link if user.get('has_beatstars') else f"{user.get('display_name')}"
+    final_link = purchase_link if user.get('has_beatstars') else f"{user.get('username')}"
 
     return UNIVERSAL_TEMPLATE.format(
         purchase_link=final_link,

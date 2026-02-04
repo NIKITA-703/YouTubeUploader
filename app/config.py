@@ -50,7 +50,6 @@ PLAYLISTS = {
 # =========================
 # Runtime app config
 # =========================
-
 @dataclass(frozen=True)
 class AppConfig:
     gemini_api_key: str
@@ -66,7 +65,7 @@ def load_config() -> AppConfig:
         r"/old/beat.mp4",
     )
 
-    default_title = os.getenv(
+    default_title_template = os.getenv(
         "DEFAULT_TITLE",
         "[FREE] АРТИСТ x АРТИСТ TYPE BEAT - НАЗВАНИЕ (prod. {display_name})"
     )
@@ -74,5 +73,5 @@ def load_config() -> AppConfig:
     return AppConfig(
         gemini_api_key=gemini_api_key,
         default_video_path=default_video_path,
-        default_title_template=default_title,
+        default_title_template=default_title_template,
     )

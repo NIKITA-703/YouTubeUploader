@@ -1,16 +1,14 @@
 from __future__ import annotations
-
 import os
 import logging
 from contextlib import asynccontextmanager
-
-from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.database import init_db
 from app.web.common import mount_static
-from app.web.auth import AuthGuardMiddleware, validate_auth_env
 from app.web import pages, api, auth
 
 
@@ -24,33 +22,43 @@ async def lifespan(app: FastAPI):
     print("--- SERVER SHUTTING DOWN ---")
 
 
+# --- Надежный Middleware ---
+class AuthGuardMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        # Публичные пути, которые не требуют логина
+        public_prefixes = ("/login", "/static", "/favicon.ico", "/previews" )
+
+        if path == "/login" or any(path.startswith(p) for p in public_prefixes):
+            return await call_next(request)
+
+        # Проверка сессии
+        if not request.session.get("logged_in"):
+            if path.startswith("/api/"):
+                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+            return RedirectResponse(url="/login", status_code=302)
+
+        return await call_next(request)
+
+
 # 2. Функция создания приложения
 def create_app() -> FastAPI:
-    load_dotenv(override=True)
-    logging.basicConfig(level=logging.INFO)
-
-    validate_auth_env()
-
-    session_secret = (os.getenv("SESSION_SECRET") or "").strip()
-    if not session_secret:
-        raise RuntimeError("SESSION_SECRET не задан в .env")
-
-    # ВАЖНО: Мы создаем ОДНО приложение и передаем ему lifespan
     app = FastAPI(lifespan=lifespan)
 
-    # Middleware
+    session_secret = os.getenv("SESSION_SECRET", "super-secret-key")
+
+    # ПОРЯДОК: Сначала AuthGuard, потом Session (чтобы Session был снаружи)
     app.add_middleware(AuthGuardMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=session_secret,
         session_cookie="uploader_session",
         same_site="lax",
-        https_only=True,
+        https_only=False,  # На Windows ставим False
     )
 
     mount_static(app)
 
-    # Подключаем роутеры
     app.include_router(auth.router)
     app.include_router(pages.router)
     app.include_router(api.router)

@@ -10,13 +10,13 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status, FastAPI
 from fastapi.responses import JSONResponse
-
+from starlette.responses import HTMLResponse
 from app.ai.tags import generate_youtube_tags
 from app.content.description import build_description
 from app.database import DB_PATH
 from app.media.preview_fetch import download_thumbnail_for_beat
 from app.pipeline import upload_flow_web
-from app.web.common import PREVIEW_DIR, WEB_TMP_DIR
+from app.web.common import PREVIEW_DIR, WEB_TMP_DIR, templates
 from app.web.utils import normalize_hashtags, normalize_seo_tags, parse_dt_local_msk_to_publish_at
 from app.web.youtube_client import get_youtube_client
 from app.config import load_config, PLAYLISTS

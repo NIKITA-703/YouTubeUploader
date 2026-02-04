@@ -227,6 +227,7 @@ old/
 
 client_secret*.json
 token.json
+create_users.py
 
 photo/
 previews/

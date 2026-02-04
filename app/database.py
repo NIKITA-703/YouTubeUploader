@@ -23,9 +23,32 @@ def init_db():
                 last_updated DATETIME
             )
         ''')
+
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password_hash TEXT,
+                email TEXT,
+                instagram TEXT,
+                telegram TEXT,
+                has_beatstars INTEGER DEFAULT 0  -- 1 если нужно поле Beatstars, 0 если нет
+            )
+        ''')
+
     conn.commit()
     conn.close()
     print("--- DATABASE INITIALIZED ---")
+
+
+def get_user(username: str):
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+    user = cursor.fetchone()
+    conn.close()
+    return dict(user) if user else None
 
 
 def add_video_to_db(video_id, title, hashtags, seo_tags):

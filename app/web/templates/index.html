@@ -83,23 +83,25 @@
           </div>
 
           <div class="row g-3 mb-3">
-            <!-- Название видео (занимает 8 колонок из 12) -->
-            <div class="col-md-8 glitch-field">
-              <label class="form-label glitch-label" data-text="НАЗВАНИЕ ВИДЕО">
-                Название видео <span class="text-danger">*</span>
-              </label>
-              <input id="title" class="form-control glitch-input" type="text" maxlength="100" value="{{ default_title }}">
-              <div class="form-text">YouTube ограничивает title — до 100 символов.</div>
-            </div>
+              <!-- Если Beatstars есть - ширина 8, если нет - ширина 12 (на весь ряд) -->
+              <div class="{% if show_beatstars %}col-md-8{% else %}col-12{% endif %} glitch-field">
+                  <label class="form-label glitch-label" data-text="НАЗВАНИЕ ВИДЕО">
+                      Название видео <span class="text-danger">*</span>
+                  </label>
+                  <input id="title" class="form-control glitch-input" type="text" maxlength="100" value="{{ default_title }}">
+                  <div class="form-text">YouTube ограничивает title — до 100 символов.</div>
+              </div>
 
-            <!-- Ссылка Beatstars (занимает 4 колонки из 12) -->
-            <div class="col-md-4 glitch-field">
-              <label class="form-label glitch-label" data-text="ССЫЛКА BEATSTARS">
-                Ссылка Beatstars
-              </label>
-              <input id="purchase_link" class="form-control glitch-input" type="text" placeholder="https://bsta.rs/...">
-              <div class="form-text">Прямая ссылка на бит.</div>
-            </div>
+              {% if show_beatstars %}
+              <div class="col-md-4 glitch-field">
+                  <label class="form-label glitch-label" data-text="ССЫЛКА BEATSTARS">Ссылка Beatstars</label>
+                  <input id="purchase_link" class="form-control glitch-input" type="text" placeholder="https://bsta.rs/...">
+                  <div class="form-text">Прямая ссылка на бит.</div>
+              </div>
+              {% else %}
+                  <!-- Скрытое поле со значением по умолчанию, чтобы JS не упал -->
+                  <input id="purchase_link" type="hidden" value="https://www.beatstars.com/kellmibeats">
+              {% endif %}
           </div>
 
           <div class="row g-3 mb-3">

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import traceback
+import shutil
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -148,10 +149,10 @@ def api_upload(
     video_file: UploadFile = File(...),
 ):
     """
-    Загружаем видео на YouTube.
+    Загружаем видео на YouTube с автоматической очисткой места.
     """
+    video_path = None
     try:
-
         cfg = load_config()
         if not cfg.gemini_api_key:
             raise HTTPException(status_code=400, detail="GEMINI_API_KEY не задан")
@@ -164,13 +165,19 @@ def api_upload(
             raise HTTPException(status_code=400, detail="video_file пустой")
 
         upload_id = uuid.uuid4().hex
-
-        # сохраняем видео
+        # Формируем путь к файлу
         video_path = WEB_TMP_DIR / f"{upload_id}_{video_file.filename}"
-        with video_path.open("wb") as f:
-            f.write(video_file.file.read())
 
-        # publishAt
+        # 1. ПОТОКОВАЯ ЗАПИСЬ (Saving file without RAM spikes)
+        try:
+            with video_path.open("wb") as buffer:
+                shutil.copyfileobj(video_file.file, buffer)
+        except OSError as e:
+            if e.errno == 28:
+                raise HTTPException(status_code=507, detail="На сервере закончилось место для загрузки")
+            raise
+
+        # 2. Подготовка метаданных
         publish_at = None
         if publish_dt_local.strip():
             publish_at = parse_dt_local_msk_to_publish_at(publish_dt_local.strip())
@@ -178,27 +185,22 @@ def api_upload(
         hashtags_list = normalize_hashtags(hashtags)
         seo_list = normalize_seo_tags(seo_tags)
 
-        hashtags_override = hashtags_list  # всегда список, даже []
-        seo_override = seo_list  # всегда список, даже []
-
-        # preview override
+        # 3. Обработка превью
         preview_path_override: Optional[str] = None
-
-        # 1) ручной файл
+        # Если загружен ручной файл
         if preview_file is not None and preview_file.filename:
             p = WEB_TMP_DIR / f"{upload_id}_{preview_file.filename}"
             with p.open("wb") as f:
-                f.write(preview_file.file.read())
+                shutil.copyfileobj(preview_file.file, f)
             preview_path_override = str(p)
-
-        # 2) выбранное авто-превью
+        # Если выбрано из галереи
         elif preview_filename.strip():
             p = PREVIEW_DIR / preview_filename.strip()
             if p.exists():
                 preview_path_override = str(p)
 
+        # 4. ЗАГРУЗКА НА YOUTUBE
         youtube = get_youtube_client()
-
         result = upload_flow_web(
             youtube=youtube,
             media_file=str(video_path),
@@ -207,20 +209,15 @@ def api_upload(
             key=key,
             purchase_link_override=purchase_link,
             gemini_api_key=cfg.gemini_api_key,
-            hashtags_override=hashtags_override,
-            seo_tags_override=seo_override,
+            hashtags_override=hashtags_list,
+            seo_tags_override=seo_list,
             publish_at_override=publish_at,
             preview_path_override=preview_path_override,
             category_id="10",
         )
 
-        # чистим видео после загрузки (чтобы не занимало место)
-        try:
-            video_path.unlink(missing_ok=True)
-        except Exception:
-            pass
-
-        video_url = f"https://www.youtube.com/watch?v={result.video_id}"
+        # 5. Формирование ответа
+        video_url = f"https://youtu.be/{result.video_id}"
 
         playlists_out = []
         for pid in result.playlist_ids:
@@ -230,21 +227,29 @@ def api_upload(
                 "url": f"https://www.youtube.com/playlist?list={pid}",
             })
 
-        return JSONResponse(
-            {
-                "ok": True,
-                "message": "Видео успешно загружено ✅",
-                "video_id": result.video_id,
-                "video_url": video_url,
-                "publish_at": result.publish_at,  # оставим как есть (UTC) — фронт красиво покажет
-                "playlists": playlists_out,  # уже человеко-понятно
-                "warnings": getattr(result, "warnings", []),
-            }
-        )
+        return JSONResponse({
+            "ok": True,
+            "message": "Видео успешно загружено ✅",
+            "video_id": result.video_id,
+            "video_url": video_url,
+            "publish_at": result.publish_at,
+            "playlists": playlists_out,
+            "warnings": getattr(result, "warnings", []),
+        })
 
     except HTTPException:
         raise
     except Exception as e:
         tb = traceback.format_exc()
-        print("UPLOAD ERROR:\n", tb)  # будет в консоли uvicorn
+        print("UPLOAD ERROR:\n", tb)
+        # Если это ошибка YouTube про теги, мы увидим её здесь
         raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        # 6. ГАРАНТИРОВАННАЯ ОЧИСТКА (Выполнится всегда)
+        if video_path and video_path.exists():
+            try:
+                video_path.unlink()
+                print(f"--> [CLEANUP] Удален временный файл видео: {video_path.name}")
+            except Exception as cleanup_err:
+                print(f"--> [CLEANUP ERROR]: {cleanup_err}")

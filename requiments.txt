@@ -11,6 +11,8 @@ google-auth-httplib2
 
 google-genai
 
+grpcio
+
 python-dotenv
 requests
 tzdata; platform_system=="Windows"

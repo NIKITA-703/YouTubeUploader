@@ -49,7 +49,9 @@ def _clean_seo_tag(tag: str) -> str:
     t = _normalize_space(tag)
     if not t:
         return ""
-    t = t.replace("#", "").replace('"', "").replace("'", "")
+    # Удаляем не только решетки и кавычки, но и ЗАПЯТЫЕ, и угловые скобки
+    t = t.replace("#", "").replace('"', "").replace("'", "").replace(",", "")
+    t = t.replace("<", "").replace(">", "")
     t = _normalize_space(t)
     return t
 
@@ -97,7 +99,7 @@ def generate_youtube_tags(
         "travis scott", "future", "metro boomin", "playboi carti", "kanye west",
         "nemzzz", "cash cobain", "lil baby", "21 savage", "obladaet", "southside",
         "gunna", "yasmi", "mike dean", "yeat", "ken carson", "drake", "partynextdoor",
-        "lil tecca", "markul", "migos", "doomee", "bato", "esdeekid"
+        "lil tecca", "markul", "migos", "doomee", "bato", "esdeekid", "Don Toliver"
     ]
 
     # Определяем текущий год (в твоем случае жестко 2026)

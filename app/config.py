@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 DESCRIPTION_TEMPLATE = """
 👉 Buy this beat: {purchase_link}
-Instant download • Safe monetization • Official release ready
+FREE for non-profit use • Purchase license for monetization
 
 BPM: {bpm}
 Key: {key}
@@ -62,6 +62,7 @@ KNOWN_ARTISTS = [
     "migos",
     "doomee",
     "bato",
+    "Don Toliver",
     "esdeekid"
 ]
 
@@ -97,7 +98,7 @@ def load_config() -> AppConfig:
 
     default_title = os.getenv(
         "DEFAULT_TITLE",
-        "АРТИСТ x АРТИСТ Type Beat – “Safety” | Beat Switch | 2026"
+        "[FREE] АРТИСТ x АРТИСТ Type Beat – “НАЗВАНИЕ” | ЧТО_УГОДНО 2026"
     )
 
     return AppConfig(

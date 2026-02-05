@@ -80,14 +80,24 @@ def download_random_by_ddg(query: str) -> Path:
     global USED_IMAGE_URLS
 
     with DDGS() as ddgs:
-        # Ищем изображения.
-        # region="wt-wt" (весь мир), safesearch="off" (чтобы находил рэперов)
-        results = list(ddgs.images(
-            keywords=query,
-            region="wt-wt",
-            safesearch="off",
-            max_results=30
-        ))
+        # ПРАВИЛЬНЫЙ ВЫЗОВ ДЛЯ НОВЫХ ВЕРСИЙ:
+        # Мы передаем запрос первым аргументом БЕЗ указания имени 'keywords='
+        # Это сработает в 99% версий библиотеки.
+        try:
+            results = list(ddgs.images(
+                query,
+                region="wt-wt",
+                safesearch="off",
+                max_results=30
+            ))
+        except TypeError:
+            # На случай, если библиотека совсем старая
+            results = list(ddgs.images(
+                keywords=query,
+                region="wt-wt",
+                safesearch="off",
+                max_results=30
+            ))
 
     if not results:
         raise RuntimeError(f"Ничего не найдено по запросу: {query}")
@@ -95,7 +105,6 @@ def download_random_by_ddg(query: str) -> Path:
     # Фильтруем те, что уже использовали
     candidates = [r for r in results if r.get("image") not in USED_IMAGE_URLS]
 
-    # Если всё видели — берем из того что есть
     if not candidates:
         candidates = results
 
@@ -115,7 +124,6 @@ def download_random_by_ddg(query: str) -> Path:
     filename = f"{clean_q}_{int(time.time())}{ext}"
     out_path = _get_photo_dir() / filename
 
-    # Скачиваем
     download_image(img_url, out_path)
     return out_path
 

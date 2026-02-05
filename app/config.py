@@ -69,7 +69,7 @@ def load_config() -> AppConfig:
 
     default_title_template = os.getenv(
         "DEFAULT_TITLE",
-        "[FREE] АРТИСТ x АРТИСТ TYPE BEAT - НАЗВАНИЕ (prod. {display_name})"
+        "[FREE] АРТИСТ x АРТИСТ TYPE BEAT - \"НАЗВАНИЕ\" (prod. {display_name})"
     )
 
     return AppConfig(

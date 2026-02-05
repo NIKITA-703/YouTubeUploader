@@ -89,26 +89,27 @@ def api_fill(request: Request,
              bpm: str = Form(""),
              key: str = Form(""),
              ):
-    """
-    Заполнить поля:
-    - Gemini hashtags + seo_tags
-    - description
-    - скачать превью
-    """
     cfg = load_config()
 
+    # 1. Проверка ключа
     if not cfg.gemini_api_key:
-        raise HTTPException(status_code=400, detail="GEMINI_API_KEY не задан")
+        return JSONResponse({"detail": "Ключ Gemini не найден в .env"}, status_code=400)
 
     title = (title or "").strip()[:100]
     if not title:
-        raise HTTPException(status_code=400, detail="title пустой")
+        return JSONResponse({"detail": "Введите название бита"}, status_code=400)
 
-    ai = generate_youtube_tags(title, api_key=cfg.gemini_api_key)
-    hashtags = ai.get("hashtags", [])
-    seo_tags = ai.get("seo_tags", [])
+    # 2. ГЕНЕРАЦИЯ ТЕГОВ (Ловим ошибку Gemini здесь)
+    try:
+        ai = generate_youtube_tags(title, api_key=cfg.gemini_api_key)
+        hashtags = ai.get("hashtags", [])
+        seo_tags = ai.get("seo_tags", [])
+    except Exception as e:
+        # Если Gemini упала, мы не роняем весь сайт, а возвращаем статус 429 или 500
+        print(f"--> Gemini Error: {e}")
+        return JSONResponse({"detail": f"Ошибка нейросети: {str(e)}"}, status_code=500)
 
-    # Собираем инфу о юзере из сессии
+    # 3. Данные пользователя
     user_session_data = {
         "username": request.session.get("username"),
         "display_name": request.session.get("display_name"),
@@ -118,24 +119,16 @@ def api_fill(request: Request,
         "has_beatstars": request.session.get("has_beatstars")
     }
 
-    # Вызываем билд описания (теперь с юзером!)
-    description = build_description(
-        tags=hashtags,
-        purchase_link=purchase_link,
-        bpm=bpm,
-        key=key,
-        user=user_session_data
-    )
+    description = build_description(hashtags, purchase_link, bpm, key, user_session_data)
 
+    # 4. СКАЧИВАНИЕ ПРЕВЬЮ (Тут у тебя уже есть try...except, это хорошо!)
     preview_url = ""
     preview_filename = ""
     try:
-        # Пытаемся скачать
         preview_path = download_thumbnail_for_beat(title)
         preview_url = f"/previews/{preview_path.name}"
         preview_filename = preview_path.name
     except Exception as e:
-        # Если не получилось - просто пишем в консоль, но НЕ роняем сайт
         print(f"--> [WARNING] Превью не скачано: {e}")
         preview_url = ""
 

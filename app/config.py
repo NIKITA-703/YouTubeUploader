@@ -38,12 +38,14 @@ KNOWN_ARTISTS = [
 ]
 
 PLAYLISTS = {
-    "travis scott": "PLWaG8IuGpqXhZ2xqGG6QaoIFNCkc7exOF",
-    "future": "PLWaG8IuGpqXixve4PsmoBAY8qL1CRRHp4",
-    "metro boomin": "PLWaG8IuGpqXjT5UELOmBJl1dVhWgObUWV",
-    "playboi carti": "PLWaG8IuGpqXj3p4bD7Uo_PQtSkj3iKNie",
-    "kanye west": "PLWaG8IuGpqXjTl2Il7L3HPePWf-qJy6b8",
-    "Drake": "PLWaG8IuGpqXgHUv3f09hlHuwMhtHE4LyK",
+    "Travis Scott": "PLPxCwthWFiBFT1l0AKOrfMZvPhw9neEB3",
+    "Future": "PLPxCwthWFiBGAxqkCOpgoue4gCu3Q1EWK",
+    "Metro Boomin": "PLPxCwthWFiBGL5uEhoBafdFXKYwtLgMgz",
+    "Playboi Carti": "PLPxCwthWFiBFjH324wsu-UVT5MA3pAoKT",
+    "Kanye West": "PLPxCwthWFiBF1oLj4DOD2OejNaV7cPFQ_",
+    "Drake": "PLPxCwthWFiBFWWWxIw3ochHGTY9UaTYIG",
+    "Don Toliver": "PLPxCwthWFiBFeBgbbBfX_g2f4Hew9Vdi1",
+    "Southside": "PLPxCwthWFiBFIeDgnRFjCqZleSUXj4Rm9",
 }
 
 

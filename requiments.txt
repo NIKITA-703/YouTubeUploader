@@ -13,6 +13,8 @@ google-genai
 
 grpcio
 
+pip install ddgs
+
 python-dotenv
 requests
 tzdata; platform_system=="Windows"

@@ -127,8 +127,17 @@ def api_fill(request: Request,
         user=user_session_data
     )
 
-    preview_path = download_thumbnail_for_beat(title)
-    preview_url = f"/previews/{preview_path.name}"
+    preview_url = ""
+    preview_filename = ""
+    try:
+        # Пытаемся скачать
+        preview_path = download_thumbnail_for_beat(title)
+        preview_url = f"/previews/{preview_path.name}"
+        preview_filename = preview_path.name
+    except Exception as e:
+        # Если не получилось - просто пишем в консоль, но НЕ роняем сайт
+        print(f"--> [WARNING] Превью не скачано: {e}")
+        preview_url = ""
 
     return {
         "title": title,
@@ -137,7 +146,7 @@ def api_fill(request: Request,
         "seo_tags": ", ".join(seo_tags),
         "description": description,
         "preview_url": preview_url,
-        "preview_filename": preview_path.name,
+        "preview_filename": preview_filename,
     }
 
 

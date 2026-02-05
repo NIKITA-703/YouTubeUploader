@@ -293,7 +293,9 @@ clearBtn?.addEventListener("click", () => {
 
 fillBtn?.addEventListener("click", async () => {
   try {
+    // Очищаем прошлые результаты и сбрасываем цвет статуса
     hideResult();
+    if (statusEl) statusEl.style.color = "";
 
     const title = (titleEl.value || "").trim();
     if (!title) throw new Error("Введите название");
@@ -314,14 +316,40 @@ fillBtn?.addEventListener("click", async () => {
     }
 
     const data = parsed.data;
+
+    // Заполняем поля
     hashtagsEl.value = data.hashtags || "";
     seoEl.value = data.seo_tags || "";
 
-    previewImg.src = (data.preview_url || "") + "?t=" + Date.now();
-    previewFilenameEl.value = data.preview_filename || "";
+    // Обновляем фото
+    let previewStatus = "";
+    if (data.preview_url) {
+      previewImg.src = data.preview_url + "?t=" + Date.now();
+      previewFilenameEl.value = data.preview_filename || "";
+      previewStatus = " + Превью найдено";
+    }
 
     await loadGallery();
-    setStatus("Готово ✅");
+
+    // --- ЛОГИКА ВЫВОДА ПРЕДУПРЕЖДЕНИЯ В БЛОК РЕЗУЛЬТАТА ---
+    if (data.warning) {
+      // Показываем оранжевый блок-карточку
+      resultBox.innerHTML = `
+        <div class="glitch-ai-warning">
+          <b>AI_STATUS // SEMI_OFFLINE</b>
+          ${data.warning}
+          <small>> Поля заполнены стандартными тегами. <br> Проверьте их вручную.</small>
+        </div>
+      `;
+      resultBox.classList.remove("d-none");
+
+      // Статус сверху делаем нейтральным
+      setStatus("Заполнено (Standard Mode)" + previewStatus);
+    } else {
+      // Если всё идеально
+      setStatus("Готово ✅" + previewStatus);
+    }
+
   } catch (e) {
     setStatus("Ошибка");
     showError("Ошибка: " + e.message);

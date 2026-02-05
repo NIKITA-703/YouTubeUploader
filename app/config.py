@@ -54,13 +54,14 @@ PLAYLISTS = {
 # =========================
 @dataclass(frozen=True)
 class AppConfig:
-    gemini_api_key: str
+    gemini_api_key: list[str]
     default_video_path: str
     default_title_template: str
 
 
 def load_config() -> AppConfig:
-    gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    raw_keys = os.getenv("GEMINI_API_KEY", "")
+    gemini_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
 
     default_video_path = os.getenv(
         "DEFAULT_VIDEO_PATH",
@@ -73,7 +74,7 @@ def load_config() -> AppConfig:
     )
 
     return AppConfig(
-        gemini_api_key=gemini_api_key,
+        gemini_api_key=gemini_keys,
         default_video_path=default_video_path,
         default_title_template=default_title_template,
     )

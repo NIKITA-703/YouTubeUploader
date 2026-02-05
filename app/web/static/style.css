@@ -2540,3 +2540,38 @@ textarea.glitch-input:focus {
   from { background-position: 40px 0; }
   to { background-position: 0 0; }
 }
+
+
+/* Оранжевое предупреждение (Карточка) */
+.glitch-ai-warning {
+  background: rgba(255, 152, 0, 0.03) !important; /* Очень слабый фон */
+  border: 1px solid rgba(255, 152, 0, 0.4) !important; /* Мягкая оранжевая рамка */
+  color: #ff9800 !important;
+
+  padding: 18px;
+  margin-top: 20px;
+  border-radius: 8px; /* Скругление как у красной ошибки */
+
+  font-family: "Fira Code", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+
+  /* Мягкое оранжевое свечение */
+  box-shadow: 0 0 15px rgba(255, 152, 0, 0.1);
+  position: relative;
+}
+
+.glitch-ai-warning b {
+  color: #ffb74d; /* Чуть более светлый оранжевый для заголовка */
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.glitch-ai-warning small {
+  display: block;
+  margin-top: 10px;
+  color: rgba(255, 152, 0, 0.6); /* Приглушенный текст для доп. инфо */
+  font-size: 0.75rem;
+}

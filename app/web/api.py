@@ -90,26 +90,44 @@ def api_fill(request: Request,
              key: str = Form(""),
              ):
     cfg = load_config()
-
-    # 1. Проверка ключа
-    if not cfg.gemini_api_key:
-        return JSONResponse({"detail": "Ключ Gemini не найден в .env"}, status_code=400)
+    keys = cfg.gemini_api_key
+    if not keys:
+        return JSONResponse({"detail": "Ключи Gemini не найдены в .env"}, status_code=400)
 
     title = (title or "").strip()[:100]
     if not title:
         return JSONResponse({"detail": "Введите название бита"}, status_code=400)
 
-    # 2. ГЕНЕРАЦИЯ ТЕГОВ (Ловим ошибку Gemini здесь)
-    try:
-        ai = generate_youtube_tags(title, api_key=cfg.gemini_api_key)
-        hashtags = ai.get("hashtags", [])
-        seo_tags = ai.get("seo_tags", [])
-    except Exception as e:
-        # Если Gemini упала, мы не роняем весь сайт, а возвращаем статус 429 или 500
-        print(f"--> Gemini Error: {e}")
-        return JSONResponse({"detail": f"Ошибка нейросети: {str(e)}"}, status_code=500)
+    # --- ЛОГИКА РОТАЦИИ КЛЮЧЕЙ ---
+    ai_data = None
+    ai_warning = None
 
-    # 3. Данные пользователя
+    for current_key in keys:
+        try:
+            print(f"--> Попытка генерации ключом: {current_key[:10]}...")
+            ai_data = generate_youtube_tags(title, api_key=current_key)
+            if ai_data:
+                print("--> Успешно сгенерировано!")
+                break
+        except Exception as e:
+            print(f"--> Ошибка ключа {current_key[:10]}: {e}")
+            continue
+
+    # --- ОБРАБОТКА РЕЗУЛЬТАТА ИИ ---
+    if not ai_data:
+        # План Б: Если нейросеть не ответила, ставим дефолт и предупреждаем
+        print("--> !!! Квота исчерпана. Использую дефолтные теги.")
+        hashtags_list = ["#TypeBeat", "#TrapBeat", "#FreeBeat"]
+        seo_tags_list = ["trap type beat", "free type beat", "instrumental"]
+        ai_warning = ("КОНЧИЛИСЬ ЗАПРОСЫ. НЕЙРОСЕТЬ ЗАЕБАЛАСЬ (НУЖЕН ОТДЫХ). Вставлены стандартные теги. "
+                      "Попробуйте через некоторое время или введите теги вручную.")
+    else:
+        # План А: Берем то, что сгенерировал ИИ
+        hashtags_list = ai_data.get("hashtags", [])
+        seo_tags_list = ai_data.get("seo_tags", [])
+    # --------------------------------
+
+    # Данные пользователя из сессии
     user_session_data = {
         "username": request.session.get("username"),
         "display_name": request.session.get("display_name"),
@@ -119,9 +137,10 @@ def api_fill(request: Request,
         "has_beatstars": request.session.get("has_beatstars")
     }
 
-    description = build_description(hashtags, purchase_link, bpm, key, user_session_data)
+    # Генерируем описание (используем наш список тегов)
+    description = build_description(hashtags_list, purchase_link, bpm, key, user_session_data)
 
-    # 4. СКАЧИВАНИЕ ПРЕВЬЮ (Тут у тебя уже есть try...except, это хорошо!)
+    # Поиск фото (теперь он сработает ВСЕГДА)
     preview_url = ""
     preview_filename = ""
     try:
@@ -132,14 +151,16 @@ def api_fill(request: Request,
         print(f"--> [WARNING] Превью не скачано: {e}")
         preview_url = ""
 
+    # Отправляем результат
     return {
         "title": title,
         "purchase_link": purchase_link,
-        "hashtags": " ".join(hashtags),
-        "seo_tags": ", ".join(seo_tags),
+        "hashtags": " ".join(hashtags_list),
+        "seo_tags": ", ".join(seo_tags_list),
         "description": description,
         "preview_url": preview_url,
         "preview_filename": preview_filename,
+        "warning": ai_warning # Передаем предупреждение на фронтенд
     }
 
 

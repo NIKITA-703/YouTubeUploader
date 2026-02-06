@@ -223,10 +223,14 @@ regenHashtagsBtn?.addEventListener("click", async () => {
 });
 
 function openZoom(src, caption) {
+  if (!lightbox || !lightboxImg) return;
+
+  // Очищаем старый src, чтобы не было "призрака"
+  lightboxImg.src = "";
+
   lightbox.style.display = "block";
   lightboxImg.src = src;
   lightboxCaption.innerHTML = caption || "PREVIEW_ENLARGED";
-  // Отключаем прокрутку страницы при открытом фото
   document.body.style.overflow = "hidden";
 }
 

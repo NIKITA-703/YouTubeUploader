@@ -344,7 +344,7 @@ fillBtn?.addEventListener("click", async () => {
       resultBox.classList.remove("d-none");
 
       // Статус сверху делаем нейтральным
-      setStatus("Заполнено (Standard Mode)" + previewStatus);
+      setStatus("⚠️ Готово (есть замечания)" + previewStatus);
     } else {
       // Если всё идеально
       setStatus("Готово ✅" + previewStatus);

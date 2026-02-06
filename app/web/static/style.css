@@ -848,6 +848,16 @@ textarea.glitch-input:focus {
 }
 
 
+#preview_img {
+  transition: opacity 0.3s ease; /* Плавность появления/исчезновения */
+}
+
+/* Класс, который будет "гасить" картинку */
+.img-loading {
+  opacity: 0 !important;
+}
+
+
 /* =========================
    UPLOAD BUTTON (Clean & Fixed Glitch)
 ========================= */

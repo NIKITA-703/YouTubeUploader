@@ -5,17 +5,15 @@ from app.config import PLAYLISTS
 
 def detect_playlists(title: str) -> list[str]:
     """
-        По названию видео определяет, в какие плейлисты добавлять.
-        Ищем ключи из PLAYLISTS как подстроку в title (lowercase).
-
-        Возвращает список playlistId (может быть пустым).
-        """
+    По названию видео определяет, в какие плейлисты добавлять.
+    """
     title_lower = title.lower()
     result = []
 
     for artist, playlist_id in PLAYLISTS.items():
-        if artist in title_lower:
+        if artist.lower() in title_lower:
             result.append(playlist_id)
+            print(f"--> [PLAYLIST] Найдено совпадение для: {artist}")
 
     return result
 

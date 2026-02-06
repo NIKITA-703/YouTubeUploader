@@ -48,19 +48,35 @@ def api_previews():
 @router.post("/gen_tags")
 def api_gen_tags(title: str = Form(...)):
     cfg = load_config()
-    if not cfg.gemini_api_key:
+    keys = cfg.gemini_api_key  # Это наш список ключей
+
+    if not keys:
         raise HTTPException(status_code=400, detail="GEMINI_API_KEY не задан")
 
     title = (title or "").strip()[:100]
     if not title:
         raise HTTPException(status_code=400, detail="title пустой")
 
-    ai = generate_youtube_tags(title, api_key=cfg.gemini_api_key)
-    return {
-        "ok": True,
-        "hashtags": " ".join(ai.get("hashtags", [])),
-        "seo_tags": ", ".join(ai.get("seo_tags", [])),
-    }
+    # --- ЛОГИКА РОТАЦИИ КЛЮЧЕЙ ---
+    ai_data = None
+    for current_key in keys:
+        try:
+            print(f"--> [REGEN] Попытка ключом: {current_key[:10]}...")
+            ai_data = generate_youtube_tags(title, api_key=current_key)
+            if ai_data:
+                break  # Сработало — выходим
+        except Exception as e:
+            print(f"--> [REGEN] Ошибка ключа: {e}")
+            continue  # Пробуем следующий
+
+    if not ai_data:
+        raise HTTPException(status_code=429, detail="Все ключи исчерпаны. Подождите немного.")
+    # -----------------------------
+
+    hashtags = " ".join(ai_data["hashtags"])
+    seo_tags = ", ".join(ai_data["seo_tags"])
+
+    return {"ok": True, "hashtags": hashtags, "seo_tags": seo_tags}
 
 
 @router.post("/gen_preview")

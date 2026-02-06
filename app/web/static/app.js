@@ -301,8 +301,13 @@ fillBtn?.addEventListener("click", async () => {
     hideResult();
     if (statusEl) statusEl.style.color = "";
 
+     previewImg.classList.add("img-loading");
+
     const title = (titleEl.value || "").trim();
-    if (!title) throw new Error("Введите название");
+    if (!title) {
+        previewImg.classList.remove("img-loading"); // Возвращаем если ошибка
+        throw new Error("Введите название");
+    }
 
     setStatus("Gemini + превью: работаю...");
 
@@ -316,28 +321,33 @@ fillBtn?.addEventListener("click", async () => {
     const parsed = await safeJson(res);
 
     if (!parsed.ok) {
+      previewImg.classList.remove("img-loading"); // Возвращаем если ошибка
       throw new Error(parsed.data?.detail || parsed.raw || "Ошибка /api/fill");
     }
 
     const data = parsed.data;
-
-    // Заполняем поля
     hashtagsEl.value = data.hashtags || "";
     seoEl.value = data.seo_tags || "";
 
     // Обновляем фото
     let previewStatus = "";
     if (data.preview_url) {
+      // 2. Устанавливаем обработчик: когда НОВАЯ картинка загрузится — ВКЛЮЧАЕМ её
+      previewImg.onload = () => {
+          previewImg.classList.remove("img-loading"); // <-- ФИКС
+      };
+
       previewImg.src = data.preview_url + "?t=" + Date.now();
       previewFilenameEl.value = data.preview_filename || "";
       previewStatus = " + Превью найдено";
+    } else {
+      // Если картинки нет — возвращаем видимость (для пустой заглушки)
+      previewImg.classList.remove("img-loading");
     }
 
     await loadGallery();
 
-    // --- ЛОГИКА ВЫВОДА ПРЕДУПРЕЖДЕНИЯ В БЛОК РЕЗУЛЬТАТА ---
     if (data.warning) {
-      // Показываем оранжевый блок-карточку
       resultBox.innerHTML = `
         <div class="glitch-ai-warning">
           <b>AI_STATUS // SEMI_OFFLINE</b>
@@ -346,15 +356,13 @@ fillBtn?.addEventListener("click", async () => {
         </div>
       `;
       resultBox.classList.remove("d-none");
-
-      // Статус сверху делаем нейтральным
       setStatus("⚠️ Готово (есть замечания)" + previewStatus);
     } else {
-      // Если всё идеально
       setStatus("Готово ✅" + previewStatus);
     }
 
   } catch (e) {
+    previewImg.classList.remove("img-loading"); // Возвращаем видимость при любой ошибке
     setStatus("Ошибка");
     showError("Ошибка: " + e.message);
   }

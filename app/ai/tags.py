@@ -8,8 +8,7 @@ from google import genai
 from google.genai import types
 
 from app.config import KNOWN_ARTISTS
-from app.database import get_ai_knowledge_base
-
+from app.database import get_ai_knowledge_base, get_all_entities
 
 # YouTube: теги (keywords) имеют ограничения по длине.
 # Безопасно держать общий объём <= 450–480 символов.
@@ -68,11 +67,11 @@ def _cap_youtube_tags(tags: List[str], max_total_chars: int = YOUTUBE_TAGS_MAX_T
     return out
 
 
-def _extract_artists_from_title(title: str) -> List[str]:
+def _extract_artists_from_title(title: str, entities_list: list[str]) -> list[str]:
     tl = title.lower()
     found = []
-    for a in KNOWN_ARTISTS:
-        if a in tl:
+    for a in entities_list:
+        if a.lower() in tl:
             found.append(a)
     return _dedupe_preserve_order(found)
 
@@ -92,7 +91,12 @@ def generate_youtube_tags(
     """
     client = genai.Client(api_key=api_key)
 
-    artists = _extract_artists_from_title(beat_name)
+    # 1. Получаем ВСЕХ артистов из базы (и старых, и тех, что добавили битмари)
+    all_known_artists = get_all_entities()
+
+    # 2. Обновляем вспомогательную функцию экстракции (чтобы она видела новых артистов)
+    # Передаем список из базы внутрь функции
+    artists_in_title = _extract_artists_from_title(beat_name, all_known_artists)
 
     # Список разрешенных артистов для контекста
     valid_artists = [
@@ -102,7 +106,7 @@ def generate_youtube_tags(
         "lil tecca", "markul", "migos", "doomee", "bato", "esdeekid", "Don Toliver"
     ]
 
-    # Определяем текущий год (в твоем случае жестко 2026)
+    # Определяем текущий год
     current_year = datetime.datetime.now().year
 
     best_cases = get_ai_knowledge_base()
@@ -196,7 +200,8 @@ def generate_youtube_tags(
     prompt = {
         "action": "Generate metadata",
         "video_title": beat_name,
-        "context_valid_artists": valid_artists,
+        "context_valid_artists": all_known_artists,
+        "detected_in_title": artists_in_title,
         "constraints": {
             "hashtags": {
                 "count": 3,

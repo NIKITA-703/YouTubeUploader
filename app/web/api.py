@@ -15,7 +15,7 @@ from pyasn1_modules.rfc1157 import RequestID
 from starlette.responses import HTMLResponse
 from app.ai.tags import generate_youtube_tags
 from app.content.description import build_description
-from app.database import DB_PATH
+from app.database import DB_PATH, add_new_entities_from_title
 from app.media.preview_fetch import download_thumbnail_for_beat
 from app.pipeline import upload_flow_web
 from app.web.common import PREVIEW_DIR, WEB_TMP_DIR, templates
@@ -114,6 +114,10 @@ def api_fill(request: Request,
     if not title:
         return JSONResponse({"detail": "Введите название бита"}, status_code=400)
 
+    username = request.session.get("username", "unknown")
+
+    add_new_entities_from_title(title, username)
+
     # --- ЛОГИКА РОТАЦИИ КЛЮЧЕЙ ---
     ai_data = None
     ai_warning = None
@@ -176,7 +180,7 @@ def api_fill(request: Request,
         "description": description,
         "preview_url": preview_url,
         "preview_filename": preview_filename,
-        "warning": ai_warning # Передаем предупреждение на фронтенд
+        "warning": ai_warning
     }
 
 

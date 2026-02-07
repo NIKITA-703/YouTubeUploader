@@ -37,9 +37,70 @@ def init_db():
             )
         ''')
 
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS known_entities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE,
+                added_by TEXT
+            )
+        ''')
+
+    cursor.execute('SELECT COUNT(*) FROM known_entities')
+    if cursor.fetchone()[0] == 0:
+        from app.config import KNOWN_ARTISTS  # Берем список из конфига в последний раз
+        for artist in KNOWN_ARTISTS:
+            cursor.execute('INSERT OR IGNORE INTO known_entities (name, added_by) VALUES (?, ?)',
+                           (artist.lower(), "system"))
+        conn.commit()
+        print("--- DATABASE SEEDED WITH INITIAL ARTISTS ---")
+
     conn.commit()
     conn.close()
     print("--- DATABASE INITIALIZED ---")
+
+
+def add_new_entities_from_title(title: str, username: str):
+    """
+    Разбирает заголовок и сохраняет новых артистов/альбомы в базу.
+    Пример: [FREE] Travis Scott x Metro Boomin TYPE BEAT...
+    Результат: ['travis scott', 'metro boomin']
+    """
+    import re
+    title_upper = title.upper()
+
+    # 1. Находим часть между [FREE] (или началом) и TYPE BEAT
+    # Регулярка ищет текст после [FREE] до TYPE BEAT
+    match = re.search(r'(?:\[FREE\]\s+)?(.*?)\s+TYPE BEAT', title_upper, re.IGNORECASE)
+
+    if match:
+        raw_names = match.group(1)  # Например: "Travis Scott x Metro Boomin"
+        # Разделяем по ' x ', ' X ', ' , ', ' & '
+        names = re.split(r'\s+x\s+|\s+&\s+|,', raw_names, flags=re.IGNORECASE)
+
+        conn = sqlite3.connect(str(DB_PATH))
+        for name in names:
+            clean_name = name.strip().lower()
+            if len(clean_name) > 1:
+                # Вставляем, если такого еще нет (благодаря UNIQUE)
+                print(f"Add new ARTIST/ALBUM/TYPE")
+                conn.execute('INSERT OR IGNORE INTO known_entities (name, added_by) VALUES (?, ?)',
+                             (clean_name, username))
+        conn.commit()
+        conn.close()
+
+
+def get_all_entities():
+    """Собирает список артистов из кода (config.py) и из Базы Данных"""
+    from app.config import KNOWN_ARTISTS  # Твои базовые артисты
+
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    cursor.execute('SELECT name FROM known_entities')
+    db_entities = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
+    # Объединяем и убираем дубликаты
+    return list(set(KNOWN_ARTISTS + db_entities))
 
 
 def get_user(username: str):

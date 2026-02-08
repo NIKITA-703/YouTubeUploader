@@ -244,7 +244,20 @@ def api_upload(
         # 2. Подготовка метаданных
         publish_at = None
         if publish_dt_local.strip():
+            # Превращаем ввод в UTC
             publish_at = parse_dt_local_msk_to_publish_at(publish_dt_local.strip())
+
+            from datetime import datetime, timezone, timedelta
+            # Парсим полученную дату обратно для проверки
+            scheduled_dt = datetime.fromisoformat(publish_at.replace('Z', '+00:00'))
+            now_utc = datetime.now(timezone.utc)
+
+            # Если дата меньше чем "сейчас + 20 минут"
+            if scheduled_dt < (now_utc + timedelta(minutes=20)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="ОШИБКА: Дата публикации должна быть минимум через 30 минут от текущего времени МСК!"
+                )
 
         hashtags_list = normalize_hashtags(hashtags)
         seo_list = normalize_seo_tags(seo_tags)

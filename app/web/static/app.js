@@ -440,6 +440,39 @@ previewFileEl?.addEventListener("change", () => {
   setStatus("Выбрано своё превью ✅");
 });
 
+function formatDate(isoString) {
+  if (!isoString) return "IMMEDIATE_RELEASE";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return isoString;
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 2. Функция установки лимитов
+function setMinDate() {
+  const publishEl = document.getElementById("publish_dt");
+  if (!publishEl || document.activeElement === publishEl) return;
+
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 30);
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+
+  const minStr = `${year}-${month}-${day}T${hours}:${minutes}`;
+  publishEl.setAttribute("min", minStr);
+}
+
+// Запуск при загрузке
+document.addEventListener("DOMContentLoaded", () => {
+  // Даем браузеру 100мс "продышаться" после рендеринга
+  setTimeout(setMinDate, 100);
+  // Обновляем лимит каждую минуту
+  setInterval(setMinDate, 60000);
+});
 
 uploadBtn?.addEventListener("click", () => {
   try {
@@ -524,10 +557,10 @@ uploadBtn?.addEventListener("click", () => {
       // финальный статус
       setStatus("Готово ✅");
 
-      // --- красивый вывод (как раньше) ---
+      // --- красивый вывод ---
       const publishText = data.publish_at
-      ? `${escapeHtml(String(data.publish_at))} (UTC)`
-      : "NO_DATE";
+      ? formatDate(data.publish_at)
+      : "IMMEDIATE_RELEASE (БЕЗ РАСПИСАНИЯ)";
 
         // 2. Формируем ссылку (исправил твой url_id)
         const url = data.video_url || (data.video_id ? `https://youtu.be/${data.video_id}` : "");

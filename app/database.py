@@ -45,14 +45,14 @@ def init_db():
             )
         ''')
 
-    cursor.execute('SELECT COUNT(*) FROM known_entities')
-    if cursor.fetchone()[0] == 0:
-        from app.config import KNOWN_ARTISTS  # Берем список из конфига в последний раз
-        for artist in KNOWN_ARTISTS:
-            cursor.execute('INSERT OR IGNORE INTO known_entities (name, added_by) VALUES (?, ?)',
-                           (artist.lower(), "system"))
-        conn.commit()
-        print("--- DATABASE SEEDED WITH INITIAL ARTISTS ---")
+    # cursor.execute('SELECT COUNT(*) FROM known_entities')
+    # if cursor.fetchone()[0] == 0:
+    #     from app.config import KNOWN_ARTISTS  # Берем список из конфига в последний раз
+    #     for artist in KNOWN_ARTISTS:
+    #         cursor.execute('INSERT OR IGNORE INTO known_entities (name, added_by) VALUES (?, ?)',
+    #                        (artist.lower(), "system"))
+    #     conn.commit()
+    #     print("--- DATABASE SEEDED WITH INITIAL ARTISTS ---")
 
     conn.commit()
     conn.close()

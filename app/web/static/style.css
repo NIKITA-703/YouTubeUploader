@@ -2585,3 +2585,105 @@ textarea.glitch-input:focus {
   color: rgba(255, 152, 0, 0.6); /* Приглушенный текст для доп. инфо */
   font-size: 0.75rem;
 }
+
+/* =========================
+   CUSTOM FLATPICKR (Cyberpunk)
+========================= */
+
+.flatpickr-months .flatpickr-month{
+    background: #0d0d0d !important;
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months .flatpickr-monthDropdown-month{
+    background-color: #0d0d0d !important;
+}
+
+.flatpickr-calendar {
+  background: #0d0d0d !important;
+  border: 1px solid #00f2ea !important;
+  box-shadow: 0 0 20px rgba(0, 242, 234, 0.2) !important;
+  width: 310px !important;
+}
+
+/* ВЕРХНЯЯ ПЛАШКА (Месяц и Год) */
+.flatpickr-months {
+  background: #0d0d0d !important; /* Убираем серый фон */
+  border-bottom: 1px solid rgba(0, 242, 234, 0.2);
+}
+
+/* Название месяца (селект) */
+.flatpickr-monthDropdown-months {
+  background: #0d0d0d !important;
+  color: #00f2ea !important;
+  font-family: 'Fira Code', monospace;
+}
+
+/* Инпут года */
+.numInput.cur-year {
+  color: #00f2ea !important;
+  background: transparent !important;
+}
+
+/* Стрелочки переключения месяцев */
+.flatpickr-prev-month svg, .flatpickr-next-month svg {
+  fill: #00f2ea !important;
+}
+
+.flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg {
+  fill: #a855f7 !important;
+}
+
+/* ДНИ НЕДЕЛИ */
+span.flatpickr-weekday {
+  color: rgba(0, 242, 234, 0.4) !important;
+  background: #0d0d0d !important;
+}
+
+/* СЕТКА КАЛЕНДАРЯ */
+.flatpickr-innerContainer {
+  background: #0d0d0d !important;
+}
+
+/* ВЫБРАННЫЙ ДЕНЬ */
+.flatpickr-day.selected {
+  background: #00f2ea !important;
+  border-color: #00f2ea !important;
+  color: #000 !important;
+  box-shadow: 0 0 15px #00f2ea !important;
+}
+
+/* СЕГОДНЯШНИЙ ДЕНЬ */
+.flatpickr-day.today {
+  border-color: #a855f7 !important;
+  color: #a855f7 !important;
+}
+
+/* БЛОК ВРЕМЕНИ */
+.flatpickr-time {
+  height: 60px !important;
+  background: #050505 !important; /* Еще темнее для контраста */
+  border-top: 1px solid rgba(0, 242, 234, 0.2) !important;
+}
+
+.flatpickr-time input {
+  color: #00f2ea !important;
+  font-size: 1.3rem !important;
+  font-weight: bold !important;
+}
+
+.flatpickr-time .flatpickr-time-separator {
+  color: #a855f7 !important;
+  font-size: 1.3rem !important;
+}
+
+/* Скрываем стандартные маленькие стрелочки */
+.flatpickr-time .numInputWrapper span {
+  display: none !important;
+}
+
+/* Неактивные дни */
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: #333 !important;
+}

@@ -448,30 +448,47 @@ function formatDate(isoString) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// 2. Функция установки лимитов
-function setMinDate() {
-  const publishEl = document.getElementById("publish_dt");
-  if (!publishEl || document.activeElement === publishEl) return;
-
-  const now = new Date();
-  now.setMinutes(now.getMinutes() + 30);
-
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-
-  const minStr = `${year}-${month}-${day}T${hours}:${minutes}`;
-  publishEl.setAttribute("min", minStr);
-}
-
-// Запуск при загрузке
 document.addEventListener("DOMContentLoaded", () => {
-  // Даем браузеру 100мс "продышаться" после рендеринга
-  setTimeout(setMinDate, 100);
-  // Обновляем лимит каждую минуту
-  setInterval(setMinDate, 60000);
+  flatpickr("#publish_dt", {
+    enableTime: true,
+    dateFormat: "Y-m-d H:i",
+    time_24hr: true,
+    minuteIncrement: 5,
+    minDate: "today",
+
+    onReady: function(selectedDates, dateStr, instance) {
+      const hourInput = instance.timeContainer.querySelector(".flatpickr-hour");
+      const minuteInput = instance.timeContainer.querySelector(".flatpickr-minute");
+
+      const handleWheelScroll = (e, input, isHour) => {
+        e.preventDefault();
+
+        // Берем уже выбранную дату или текущую как базу
+        let date = instance.selectedDates[0] || new Date();
+        let val = isHour ? date.getHours() : date.getMinutes();
+        const delta = e.deltaY < 0 ? 1 : -1;
+
+        if (isHour) {
+          val += delta;
+          if (val > 23) val = 0;
+          if (val < 0) val = 23;
+          date.setHours(val);
+        } else {
+          // Шаг 5 минут
+          val += (delta * 5);
+          if (val > 55) val = 0;
+          if (val < 0) val = 55;
+          date.setMinutes(val);
+        }
+
+        // Устанавливаем обновленную дату обратно в календарь
+        instance.setDate(date, true);
+      };
+
+      if (hourInput) hourInput.addEventListener("wheel", (e) => handleWheelScroll(e, hourInput, true));
+      if (minuteInput) minuteInput.addEventListener("wheel", (e) => handleWheelScroll(e, minuteInput, false));
+    }
+  });
 });
 
 uploadBtn?.addEventListener("click", () => {

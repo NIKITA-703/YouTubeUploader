@@ -450,6 +450,8 @@ function formatDate(isoString) {
 
 document.addEventListener("DOMContentLoaded", () => {
   flatpickr("#publish_dt", {
+    locale: "ru",               // Подключаем русский язык
+    firstDayOfWeek: 1,          // Пн - первый день недели
     enableTime: true,
     dateFormat: "Y-m-d H:i",
     time_24hr: true,

@@ -10,14 +10,14 @@ from urllib.parse import urlparse
 import requests
 from ddgs import DDGS
 
-from app.config import KNOWN_ARTISTS
+# Импортируем функцию получения артистов из БД
+from app.database import get_all_entities
 
+# Список для текущей сессии (сбросится при перезагрузке сервера)
 USED_IMAGE_URLS: set[str] = set()
 
 
 def _get_photo_dir() -> Path:
-    """Папка для скачанных превью."""
-    # Путь для Windows или Linux (через ENV)
     p = os.getenv("PREVIEW_DIR", str(Path.cwd() / "photo"))
     photo_dir = Path(p)
     photo_dir.mkdir(parents=True, exist_ok=True)
@@ -25,10 +25,13 @@ def _get_photo_dir() -> Path:
 
 
 def extract_artists(title: str) -> list[str]:
-    """Извлекает артистов из названия бита по KNOWN_ARTISTS."""
+    """Извлекает артистов, используя динамический список из БД."""
     t = title.lower()
+    # Теперь мы не зависим от config.py, а берем всё, что знает система
+    all_known_entities = get_all_entities()
+
     found: list[str] = []
-    for artist in KNOWN_ARTISTS:
+    for artist in all_known_entities:
         if artist.lower() in t:
             found.append(artist)
 
@@ -40,21 +43,45 @@ def extract_artists(title: str) -> list[str]:
 
 
 def build_people_query(artists: list[str]) -> list[str]:
-    """Строит список поисковых запросов."""
+    """Строит список поисковых запросов строго по Pinterest."""
+
+    site_limit = "site:pinterest.com"
+
     if not artists:
-        return ["aesthetic rapper portrait pinterest"]
+        return ["aesthetic rapper portrait pinterest", "hip hop aesthetic photography"]
+
+    # Список "приправ" для поиска, чтобы картинки были разными по стилю
+    vibes = [
+        "aesthetic portrait pinterest",
+        "cook up",
+        "concert stage lighting photography",
+        "streetwear fashion portrait",
+        "dark",
+        "instagram photo",
+        "wallpaper 2k",
+    ]
 
     queries: list[str] = []
-    # Добавляем "pinterest" и "aesthetic" для сохранения того самого стиля
+
+    # 1. ПРИОРИТЕТ №1: Первый артист (он обычно самый важный в названии)
+    main_artist = artists[0]
+    selected_vibes = random.sample(vibes, 3)  # Берем 3 разных стиля для главного
+    for v in selected_vibes:
+        queries.append(f"{site_limit} {main_artist} rapper {v}")
+
+    # 2. ПРИОРИТЕТ №2: Второй артист (если есть)
+    if len(artists) >= 2:
+        second_artist = artists[1]
+        queries.append(f"{site_limit} {second_artist} rapper {random.choice(vibes)}")
+        queries.append(f"{site_limit} {second_artist} aesthetic")
+
+    # 3. ПРИОРИТЕТ №3: Ищем их вместе (только в самом конце как запасной вариант)
     if len(artists) >= 2:
         joined = " ".join(artists)
-        queries.append(f"{joined} together aesthetic pinterest")
-        queries.append(f"{joined} portrait pinterest")
+        queries.append(f"{site_limit} {joined} rappers together {random.choice(vibes)}")
 
-    for artist in artists:
-        queries.append(f"{artist} aesthetic portrait pinterest")
-        queries.append(f"{artist} rapper wallpaper")
-
+    # ВАЖНО: Мы НЕ перемешиваем список (random.shuffle),
+    # чтобы сохранить строгий порядок приоритетов: Сначала Главный -> Потом Второй -> Потом Вместе.
     return queries
 
 
@@ -64,51 +91,49 @@ def download_thumbnail_for_beat(beat_name: str) -> Path:
     queries = build_people_query(artists)
 
     last_error = None
+    # Пробуем по очереди сгенерированные запросы
     for q in queries:
         try:
-            print(f"[PREVIEW] Trying DuckDuckGo query: {q}")
+            print(f"[PREVIEW] Searching DuckDuckGo for: {q}")
             return download_random_by_ddg(q)
         except Exception as e:
-            print(f"[PREVIEW] DDG failed for '{q}': {e}")
+            print(f"[PREVIEW] Skip query '{q}': {e}")
             last_error = e
 
-    raise RuntimeError(f"Не удалось найти превью. Последняя ошибка: {last_error}")
+    raise RuntimeError(f"Не удалось найти превью. Ошибка: {last_error}")
 
 
 def download_random_by_ddg(query: str) -> Path:
-    """Ищет картинки через DuckDuckGo и скачивает случайную."""
+    """Ищет картинки через DuckDuckGo и выбирает лучшую из результатов."""
     global USED_IMAGE_URLS
 
     with DDGS() as ddgs:
-        # ПРАВИЛЬНЫЙ ВЫЗОВ ДЛЯ НОВЫХ ВЕРСИЙ:
-        # Мы передаем запрос первым аргументом БЕЗ указания имени 'keywords='
-        # Это сработает в 99% версий библиотеки.
+        # Берем 40 результатов (чем больше пул, тем меньше повторов)
         try:
             results = list(ddgs.images(
                 query,
                 region="wt-wt",
                 safesearch="off",
-                max_results=30
+                max_results=40
             ))
-        except TypeError:
-            # На случай, если библиотека совсем старая
-            results = list(ddgs.images(
-                keywords=query,
-                region="wt-wt",
-                safesearch="off",
-                max_results=30
-            ))
+        except Exception as e:
+            raise RuntimeError(f"DDG error: {e}")
 
     if not results:
-        raise RuntimeError(f"Ничего не найдено по запросу: {query}")
+        raise RuntimeError(f"No results for: {query}")
 
-    # Фильтруем те, что уже использовали
+    # Фильтруем те, что уже видели в этой сессии
     candidates = [r for r in results if r.get("image") not in USED_IMAGE_URLS]
 
+    # Если в этой сессии всё уже скачали, берем из общего списка
     if not candidates:
         candidates = results
 
-    picked = random.choice(candidates)
+    # Продвинутый выбор: стараемся брать картинки покрупнее (где есть инфа о размере)
+    # И выбираем рандомно из топ-10 лучших кандидатов
+    candidates.sort(key=lambda x: int(x.get('width') or 0), reverse=True)
+    picked = random.choice(candidates[:10])
+
     img_url = picked["image"]
     USED_IMAGE_URLS.add(img_url)
 
@@ -119,8 +144,8 @@ def download_random_by_ddg(query: str) -> Path:
     elif ".webp" in img_url.lower():
         ext = ".webp"
 
-    # Формируем имя файла
-    clean_q = re.sub(r'[^a-zA-Z0-9]', '_', query)[:30]
+    # Имя файла
+    clean_q = re.sub(r'[^a-zA-Z0-9]', '_', query)[:25]
     filename = f"{clean_q}_{int(time.time())}{ext}"
     out_path = _get_photo_dir() / filename
 

@@ -10,7 +10,13 @@ def parse_dt_local_msk_to_publish_at(dt_local_str: str) -> str:
     dt_local_str из <input type="datetime-local">: 'YYYY-MM-DDTHH:MM'
     Возвращает publishAt в UTC RFC3339.
     """
-    dt_local = datetime.strptime(dt_local_str, "%Y-%m-%dT%H:%M").replace(tzinfo=MSK)
+    clean_str = dt_local_str.strip().replace(" ", "T")
+
+    # Если дата содержит секунды (на всякий случай обрезаем до минут)
+    if clean_str.count(":") == 2:
+        clean_str = clean_str.rsplit(":", 1)[0]
+
+    dt_local = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M").replace(tzinfo=MSK)
     dt_utc = dt_local.astimezone(timezone.utc)
     return to_rfc3339_utc(dt_utc)
 

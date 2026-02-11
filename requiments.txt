@@ -1,20 +1,33 @@
+# Web Server & UI
 fastapi
 uvicorn[standard]
 python-multipart
 jinja2
 itsdangerous
 
+# Google & YouTube API
 google-api-python-client
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
-
 google-genai
-
 grpcio
 
-pip install ddgs
+# Image Search (DuckDuckGo)
+ddgs
 
+# Utils
 python-dotenv
 requests
 tzdata; platform_system=="Windows"
+
+# Telegram Bot (Manual deps for Python 3.12 compatibility)
+aiohttp
+aiogram==2.25.2
+magic-filter
+Babel
+attrs
+multidict
+yarl
+frozenlist
+aiosignal

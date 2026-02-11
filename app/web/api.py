@@ -5,8 +5,13 @@ import sqlite3
 import traceback
 import shutil
 import uuid
+import asyncio
 from datetime import datetime
+
+from app.web.telegram_bot import send_upload_report
+
 from typing import Optional
+from fastapi import BackgroundTasks
 
 from fastapi import Request
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status, FastAPI
@@ -207,6 +212,7 @@ def api_upload(
     bpm: str = Form(""),
     key: str = Form(""),
     seo_tags: str = Form(""),
+    background_tasks: BackgroundTasks = None,
     publish_dt_local: str = Form(""),  # datetime-local (опционально)
     preview_filename: str = Form(""),  # имя из /previews
     preview_file: Optional[UploadFile] = File(None),  # ручной файл
@@ -313,6 +319,19 @@ def api_upload(
                 "name": PLAYLIST_ID_TO_NAME.get(pid, pid),
                 "url": f"https://www.youtube.com/playlist?list={pid}",
             })
+
+        # ОТПРАВКА В ТЕЛЕГРАМ
+        if background_tasks:  # Проверяем, что объект существует
+            try:
+                nickname = user_session_data.get("display_name") or user_session_data.get("username")
+                background_tasks.add_task(
+                    send_upload_report,
+                    nickname=nickname,
+                    publish_at_utc=result.publish_at,
+                    video_url=video_url
+                )
+            except Exception as tg_err:
+                print(f"--> [TG ERROR] Не удалось отправить сообщение {tg_err}")
 
         return JSONResponse({
             "ok": True,

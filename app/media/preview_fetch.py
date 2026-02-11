@@ -24,6 +24,33 @@ def _get_photo_dir() -> Path:
     return photo_dir
 
 
+def _maintain_photo_limit():
+    """Следит, чтобы в папке было не больше 100 превью."""
+    photo_dir = _get_photo_dir()
+    max_files = int(os.getenv("MAX_PREVIEW_FILES", "100"))
+
+    # Получаем список всех картинок в папке
+    files = [f for f in photo_dir.glob("*") if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
+
+    if len(files) <= max_files:
+        return
+
+    # Сортируем файлы по времени изменения (старые в начале)
+    files.sort(key=lambda x: x.stat().st_mtime)
+
+    # Вычисляем, сколько нужно удалить
+    to_delete_count = len(files) - max_files
+
+    print(f"--> [CLEANUP] В папке {len(files)} фото. Удаляю {to_delete_count} старых файлов...")
+
+    for i in range(to_delete_count):
+        try:
+            files[i].unlink(missing_ok=True)
+            # print(f"    [x] Удален: {files[i].name}")
+        except Exception as e:
+            print(f"    [!] Ошибка удаления {files[i].name}: {e}")
+
+
 def extract_artists(title: str) -> list[str]:
     """Извлекает артистов, используя динамический список из БД."""
     t = title.lower()
@@ -150,6 +177,7 @@ def download_random_by_ddg(query: str) -> Path:
     out_path = _get_photo_dir() / filename
 
     download_image(img_url, out_path)
+    _maintain_photo_limit()
     return out_path
 
 

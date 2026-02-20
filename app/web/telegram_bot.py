@@ -1,7 +1,7 @@
 import os
 import asyncio
 from aiogram import Bot, types
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 # Загружаем окружение (нужно для теста)
@@ -25,7 +25,7 @@ async def send_upload_report(nickname: str, publish_at_utc: str, video_url: str)
             dt_msk = dt_utc + timedelta(hours=3)
             time_str = dt_msk.strftime("%d.%m %H:%M")
         else:
-            dt_now_msk = datetime.now(timedelta(hours=3))
+            dt_now_msk = datetime.now(timezone.utc) + timedelta(hours=3)
             time_str = dt_now_msk.strftime("%d.%m %H:%M") + " (Сразу)"
 
         # 2. Формируем КРАСИВЫЙ текст с HTML

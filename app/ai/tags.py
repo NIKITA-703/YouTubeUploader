@@ -2,7 +2,7 @@ import json
 import re
 import os
 import datetime
-from typing import List, Dict, Any
+from typing import Any
 
 from google import genai
 from google.genai import types
@@ -21,7 +21,7 @@ def _normalize_space(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _dedupe_preserve_order(items: List[str]) -> List[str]:
+def _dedupe_preserve_order(items: list[str]) -> list[str]:
     seen = set()
     out = []
     for x in items:
@@ -55,7 +55,7 @@ def _clean_seo_tag(tag: str) -> str:
     return t
 
 
-def _cap_youtube_tags(tags: List[str], max_total_chars: int = YOUTUBE_TAGS_MAX_TOTAL_CHARS) -> List[str]:
+def _cap_youtube_tags(tags: list[str], max_total_chars: int = YOUTUBE_TAGS_MAX_TOTAL_CHARS) -> list[str]:
     out = []
     total = 0
     for t in tags:
@@ -80,7 +80,7 @@ def generate_youtube_tags(
     beat_name: str,
     api_key: str,
     model: str = "gemini-2.5-flash",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Возвращает dict:
     {
@@ -89,6 +89,16 @@ def generate_youtube_tags(
       "seo_tags": [...]    # без #
     }
     """
+    # 1. Получаем прокси из .env
+    proxy_url = os.getenv("GEMINI_PROXY")
+
+    # 2. Устанавливаем прокси как системные переменные ПЕРЕД созданием клиента
+    if proxy_url:
+        print(f"--> [AI] Настройка системного прокси для Gemini")
+        os.environ["HTTP_PROXY"] = proxy_url
+        os.environ["HTTPS_PROXY"] = proxy_url
+
+    # 3. Создаем клиент БЕЗ http_options
     client = genai.Client(api_key=api_key)
 
     # 1. Получаем ВСЕХ артистов из базы (и старых, и тех, что добавили битмари)
@@ -99,12 +109,12 @@ def generate_youtube_tags(
     artists_in_title = _extract_artists_from_title(beat_name, all_known_artists)
 
     # Список разрешенных артистов для контекста
-    valid_artists = [
-        "travis scott", "future", "metro boomin", "playboi carti", "kanye west",
-        "nemzzz", "cash cobain", "lil baby", "21 savage", "obladaet", "southside",
-        "gunna", "yasmi", "mike dean", "yeat", "ken carson", "drake", "partynextdoor",
-        "lil tecca", "markul", "migos", "doomee", "bato", "esdeekid", "Don Toliver"
-    ]
+    # valid_artists = [
+    #     "travis scott", "future", "metro boomin", "playboi carti", "kanye west",
+    #     "nemzzz", "cash cobain", "lil baby", "21 savage", "obladaet", "southside",
+    #     "gunna", "yasmi", "mike dean", "yeat", "ken carson", "drake", "partynextdoor",
+    #     "lil tecca", "markul", "migos", "doomee", "bato", "esdeekid", "Don Toliver"
+    # ]
 
     # Определяем текущий год
     current_year = datetime.datetime.now().year

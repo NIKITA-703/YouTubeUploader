@@ -1,6 +1,5 @@
 import sqlite3
-from datetime import datetime
-import os
+from datetime import datetime, date
 from pathlib import Path
 
 
@@ -120,10 +119,51 @@ def add_video_to_db(video_id, title, hashtags, seo_tags):
     cursor.execute('''
         INSERT OR IGNORE INTO videos (video_id, title, hashtags, seo_tags, upload_date, last_updated)
         VALUES (?, ?, ?, ?, ?, ?)
-    ''', (video_id, title, ",".join(hashtags), ",".join(seo_tags),
-          datetime.now(), datetime.now()))
+    ''', (
+        video_id,
+        title,
+        ",".join(hashtags),
+        ",".join(seo_tags),
+        datetime.now(),
+        datetime.now(),
+    ))
     conn.commit()
     conn.close()
+
+
+def has_any_upload_on_day(day_msk: date) -> bool:
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        SELECT 1
+        FROM videos
+        WHERE date(upload_date) = ?
+        LIMIT 1
+        ''',
+        (day_msk.isoformat(),),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
+def get_last_upload_at_on_day(day_msk: date):
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        SELECT upload_date
+        FROM videos
+        WHERE date(upload_date) = ?
+        ORDER BY upload_date DESC
+        LIMIT 1
+        ''',
+        (day_msk.isoformat(),),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
 
 
 def update_video_stats(video_id, views, likes):

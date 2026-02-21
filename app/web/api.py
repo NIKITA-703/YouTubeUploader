@@ -41,6 +41,18 @@ PLAYLIST_ID_TO_NAME = {
 }
 
 
+def _validate_bpm_or_raise(bpm_raw: str) -> str:
+    bpm = (bpm_raw or "").strip()
+    if not bpm:
+        return ""
+    if not bpm.isdigit():
+        raise HTTPException(status_code=400, detail="BPM должен содержать только цифры")
+    value = int(bpm)
+    if value < 0 or value > 250:
+        raise HTTPException(status_code=400, detail="BPM должен быть в диапазоне 0..250")
+    return str(value)
+
+
 @router.get("/previews")
 def api_previews():
     items = []
@@ -118,6 +130,7 @@ def api_fill(request: Request,
     title = (title or "").strip()[:100]
     if not title:
         return JSONResponse({"detail": "Введите название бита"}, status_code=400)
+    bpm = _validate_bpm_or_raise(bpm)
 
     username = request.session.get("username", "unknown")
 
@@ -230,6 +243,7 @@ def api_upload(
         title = (title or "").strip()[:100]
         if not title:
             raise HTTPException(status_code=400, detail="title пустой")
+        bpm = _validate_bpm_or_raise(bpm)
 
         if not video_file.filename:
             raise HTTPException(status_code=400, detail="video_file пустой")

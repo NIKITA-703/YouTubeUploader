@@ -42,6 +42,16 @@ function setStatus(msg) {
   if (statusEl) statusEl.textContent = msg || "";
 }
 
+function normalizeAndValidateBpm(raw) {
+  const cleaned = String(raw || "").replace(/\D+/g, "").trim();
+  if (!cleaned) return "";
+  const value = Number(cleaned);
+  if (!Number.isInteger(value) || value < 0 || value > 250) {
+    throw new Error("BPM должен быть числом от 0 до 250");
+  }
+  return String(value);
+}
+
 function hideResult() {
   if (!resultBox) return;
   resultBox.classList.add("d-none");
@@ -309,12 +319,15 @@ fillBtn?.addEventListener("click", async () => {
         throw new Error("Введите название");
     }
 
+    const bpmValue = normalizeAndValidateBpm(bpmEl?.value || "");
+    if (bpmEl) bpmEl.value = bpmValue;
+
     setStatus("Gemini + превью: работаю...");
 
     const fd = new FormData();
     fd.append("title", title);
     fd.append("purchase_link", (purchaseLinkEl.value || "").trim());
-    fd.append("bpm", bpmEl.value);
+    fd.append("bpm", bpmValue);
     fd.append("key", keyEl.value);
 
     const res = await fetch("/api/fill", { method: "POST", body: fd });
@@ -503,6 +516,8 @@ uploadBtn?.addEventListener("click", () => {
     if (!videoEl.files || videoEl.files.length === 0) {
       throw new Error("Выберите видео файл");
     }
+    const bpmValue = normalizeAndValidateBpm(bpmEl?.value || "");
+    if (bpmEl) bpmEl.value = bpmValue;
 
     setStatus("Загружаю видео на сервер...");
     uploadProgressWrap?.classList.remove("d-none");
@@ -519,7 +534,7 @@ uploadBtn?.addEventListener("click", () => {
     fd.append("hashtags", hashtagsEl?.value || "");
     fd.append("seo_tags", seoEl?.value || "");
     fd.append("publish_dt_local", publishEl?.value || "");
-    fd.append("bpm", bpmEl.value);
+    fd.append("bpm", bpmValue);
     fd.append("key", keyEl.value);
 
     // превью
@@ -657,6 +672,11 @@ uploadBtn?.addEventListener("click", () => {
     setStatus("Ошибка");
     showError("Ошибка: " + (e?.message || String(e)));
   }
+});
+
+bpmEl?.addEventListener("input", () => {
+  const digitsOnly = (bpmEl.value || "").replace(/\D+/g, "").slice(0, 3);
+  bpmEl.value = digitsOnly;
 });
 
 // маленький helper чтобы не ломать HTML (и не ловить XSS даже локально)

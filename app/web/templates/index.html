@@ -110,11 +110,31 @@
           <div class="row g-3 mb-3">
               <div class="col-md-6 glitch-field">
                   <label class="form-label glitch-label" data-text="BPM">BPM</label>
-                  <input id="bpm" class="form-control glitch-input" type="text" placeholder="140">
+                  <input id="bpm" class="form-control glitch-input" type="text" inputmode="numeric" maxlength="3" placeholder="140">
               </div>
               <div class="col-md-6 glitch-field">
                   <label class="form-label glitch-label" data-text="KEY">KEY</label>
-                  <input id="key" class="form-control glitch-input" type="text" placeholder="C Minor">
+                  <select id="key" class="form-select glitch-input">
+                    <option value="">None</option>
+                    <option>Abm</option><option>AbM</option>
+                    <option>Am</option><option>AM</option>
+                    <option>A#m</option><option>A#M</option>
+                    <option>Bbm</option><option>BbM</option>
+                    <option>Bm</option><option>BM</option>
+                    <option>CbM</option>
+                    <option>Cm</option><option>CM</option>
+                    <option>C#m</option><option>C#M</option>
+                    <option>Dbm</option><option>DbM</option>
+                    <option>Dm</option><option>DM</option>
+                    <option>D#m</option><option>D#M</option>
+                    <option>Ebm</option><option>EbM</option>
+                    <option>Em</option><option>EM</option>
+                    <option>Fm</option><option>FM</option>
+                    <option>F#m</option><option>F#M</option>
+                    <option>GbM</option>
+                    <option>Gm</option><option>GM</option>
+                    <option>G#m</option><option>G#M</option>
+                  </select>
               </div>
           </div>
 

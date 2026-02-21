@@ -14,6 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import init_db
 from app.web.common import mount_static
 from app.web import pages, api, auth
+from app.web.telegram_bot import start_reminder_service, stop_reminder_service
 
 load_dotenv()
 
@@ -24,9 +25,11 @@ async def lifespan(app: FastAPI):
     try:
         init_db()
         print("--- DATABASE READY ---")
+        await start_reminder_service()
     except Exception as e:
         print(f"--- DATABASE ERROR: {e} ---")
     yield
+    await stop_reminder_service()
     print("--- SERVER SHUTTING DOWN ---")
 
 

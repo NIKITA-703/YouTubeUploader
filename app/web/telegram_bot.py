@@ -157,12 +157,12 @@ def _cleanup_day_caches(today_iso: str):
         _kellmi_control_sent.discard(key)
 
 
-async def _send_reminder(member: dict, msk_now: datetime):
+async def _send_reminder(member: dict, msk_now: datetime) -> bool:
     username = member["username"]
     target_chat_id = member.get("chat_id")
     if not target_chat_id:
         print(f"--> [TELEGRAM REMINDER SKIP] No personal chat_id for {username}")
-        return
+        return False
 
     deadline = msk_now.replace(hour=REMINDER_DEADLINE_HOUR, minute=0, second=0, microsecond=0)
     left_str = _format_time_left(deadline, msk_now)
@@ -192,6 +192,7 @@ async def _send_reminder(member: dict, msk_now: datetime):
         reply_markup=keyboard,
         disable_web_page_preview=True,
     )
+    return True
 
 
 async def _send_kellmi_stop_control(member: dict, day_iso: str):
@@ -250,8 +251,9 @@ async def _check_and_send_for_slot(msk_now: datetime):
         _sent_cache.add(sent_key)
         return
 
-    await _send_reminder(member=member, msk_now=msk_now)
-    await _send_kellmi_stop_control(member=member, day_iso=today_iso)
+    reminder_sent = await _send_reminder(member=member, msk_now=msk_now)
+    if reminder_sent:
+        await _send_kellmi_stop_control(member=member, day_iso=today_iso)
     _sent_cache.add(sent_key)
 
 

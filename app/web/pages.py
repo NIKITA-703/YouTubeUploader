@@ -1,23 +1,28 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+import os
+
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
-from app.web.common import templates
+
 from app.config import load_config
+from app.web.common import templates
 
 router = APIRouter()
+
+
+def _is_admin(request: Request) -> bool:
+    username = (request.session.get("username") or "").strip().lower()
+    admin_usernames_raw = os.getenv("ADMIN_USERNAMES", "kellmipenis,kellmi")
+    admin_usernames = {u.strip().lower() for u in admin_usernames_raw.split(",") if u.strip()}
+    return username in admin_usernames
 
 
 @router.get("/", response_class=HTMLResponse)
 def index(request: Request):
     cfg = load_config()
-
-    # 1. Берем имя из сессии (которое мы сохранили при логине)
     current_display_name = request.session.get("display_name", "")
-
-    # 2. Формируем финальный заголовок
     final_title = cfg.default_title_template.format(display_name=current_display_name)
-
     user_has_bs = request.session.get("has_beatstars", False)
 
     return templates.TemplateResponse(
@@ -25,6 +30,20 @@ def index(request: Request):
         {
             "request": request,
             "show_beatstars": user_has_bs,
-            "default_title": final_title  # Отправляем уже готовый текст
-        }
+            "default_title": final_title,
+            "is_admin": _is_admin(request),
+        },
+    )
+
+
+@router.get("/admin/logs", response_class=HTMLResponse)
+def admin_logs(request: Request):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return templates.TemplateResponse(
+        "admin_logs.html",
+        {
+            "request": request,
+        },
     )

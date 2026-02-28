@@ -254,6 +254,15 @@
               <div id="preview_gallery" class="row g-2"></div>
             </div>
 
+            {% if is_admin %}
+            <hr class="my-4"/>
+            <div class="d-grid">
+              <a href="/admin/logs" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="LOGS PANEL">
+                <span class="btn-text">Открыть панель логов</span>
+              </a>
+            </div>
+            {% endif %}
+
           </div>
         </div>
       </div>

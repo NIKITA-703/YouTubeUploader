@@ -30,6 +30,8 @@ const keyEl = document.getElementById("key");
 // gallery
 const galleryEl = document.getElementById("preview_gallery");
 const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
+const opsLogsEl = document.getElementById("ops_logs");
+const refreshOpsBtn = document.getElementById("refresh_ops_btn");
 
 const successSound = new Audio('/static/sounds/success.mp3');
 successSound.volume = 0.5; // Уровень громкости (от 0 до 1)
@@ -202,6 +204,40 @@ async function loadGallery() {
     return;
   }
   renderGallery(parsed.data.items || []);
+}
+
+function renderOpsLogs(items) {
+  if (!opsLogsEl) return;
+  if (!items || items.length === 0) {
+    opsLogsEl.innerHTML = `<div class="text-muted">Логов пока нет.</div>`;
+    return;
+  }
+  opsLogsEl.innerHTML = items.map((it) => {
+    const ts = escapeHtml(String(it.created_at || ""));
+    const lvl = escapeHtml(String(it.level || "INFO"));
+    const ev = escapeHtml(String(it.event || ""));
+    const user = escapeHtml(String(it.username || "-"));
+    const st = escapeHtml(String(it.status || "-"));
+    const det = escapeHtml(String(it.details || ""));
+    return `
+      <div class="mb-2 pb-2 border-bottom border-secondary-subtle">
+        <div><b>${ev}</b> <span class="text-info">[${lvl}]</span></div>
+        <div class="text-muted">${ts}</div>
+        <div>user: <code>${user}</code> | status: <code>${st}</code></div>
+        ${det ? `<div class="text-secondary">${det}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadOpsLogs() {
+  const res = await fetch("/api/ops_logs?limit=30");
+  const parsed = await safeJson(res);
+  if (!parsed.ok) {
+    if (opsLogsEl) opsLogsEl.innerHTML = `<div class="text-danger">Ошибка загрузки логов</div>`;
+    return;
+  }
+  renderOpsLogs(parsed.data.items || []);
 }
 
 regenHashtagsBtn?.addEventListener("click", async () => {
@@ -590,6 +626,9 @@ uploadBtn?.addEventListener("click", () => {
 
       // финальный статус
       setStatus("Готово ✅");
+      if (opsLogsEl) {
+        loadOpsLogs().catch(() => {});
+      }
 
       // --- красивый вывод ---
       const publishText = data.publish_at
@@ -674,6 +713,14 @@ uploadBtn?.addEventListener("click", () => {
   }
 });
 
+refreshOpsBtn?.addEventListener("click", async () => {
+  try {
+    await loadOpsLogs();
+  } catch (e) {
+    showError("Ошибка логов: " + e.message);
+  }
+});
+
 bpmEl?.addEventListener("input", () => {
   const digitsOnly = (bpmEl.value || "").replace(/\D+/g, "").slice(0, 3);
   bpmEl.value = digitsOnly;
@@ -695,6 +742,9 @@ function escapeHtml(s) {
 
 window.addEventListener("DOMContentLoaded", () => {
   loadGallery().catch(() => {});
+  if (opsLogsEl) {
+    loadOpsLogs().catch(() => {});
+  }
 });
 
 // =========================

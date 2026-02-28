@@ -17,6 +17,10 @@ from app.web import pages, api, auth
 from app.web.telegram_bot import start_reminder_service, stop_reminder_service
 
 load_dotenv()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 
 @asynccontextmanager

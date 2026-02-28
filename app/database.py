@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from pathlib import Path
 
 
@@ -41,6 +41,40 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE,
                 added_by TEXT
+            )
+        ''')
+
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS operation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at DATETIME,
+                level TEXT,
+                event TEXT,
+                username TEXT,
+                status TEXT,
+                details TEXT
+            )
+        ''')
+
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_daily_uploads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                day_msk TEXT NOT NULL,
+                username TEXT NOT NULL,
+                video_id TEXT,
+                created_at DATETIME,
+                UNIQUE(day_msk, username)
+            )
+        ''')
+
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reminder_manual_stops (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                day_msk TEXT NOT NULL,
+                username TEXT NOT NULL,
+                stopped_by_user_id TEXT,
+                created_at DATETIME,
+                UNIQUE(day_msk, username)
             )
         ''')
 
@@ -148,6 +182,110 @@ def has_any_upload_on_day(day_msk: date) -> bool:
     return row is not None
 
 
+def mark_user_upload_on_day(username: str, video_id: str | None = None, day_msk: date | None = None):
+    if not username:
+        return
+    if day_msk is None:
+        msk = timezone(timedelta(hours=3))
+        day_msk = datetime.now(timezone.utc).astimezone(msk).date()
+
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        INSERT INTO user_daily_uploads (day_msk, username, video_id, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(day_msk, username) DO UPDATE SET
+            video_id = excluded.video_id,
+            created_at = excluded.created_at
+        ''',
+        (day_msk.isoformat(), username, video_id, datetime.now()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def has_user_upload_on_day(username: str, day_msk: date) -> bool:
+    if not username:
+        return False
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        SELECT 1
+        FROM user_daily_uploads
+        WHERE day_msk = ? AND username = ?
+        LIMIT 1
+        ''',
+        (day_msk.isoformat(), username),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
+def has_legacy_video_upload_on_day(producer_username: str, day_msk: date) -> bool:
+    """
+    Fallback for old records before user_daily_uploads existed.
+    Uses title pattern: (prod. <username> ...)
+    """
+    if not producer_username:
+        return False
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        SELECT 1
+        FROM videos
+        WHERE date(upload_date) = ?
+          AND lower(title) LIKE ?
+        LIMIT 1
+        ''',
+        (day_msk.isoformat(), f"%prod. {producer_username.lower()}%"),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
+def mark_manual_stop_on_day(day_msk: date, username: str, stopped_by_user_id: str | None = None):
+    if not username:
+        return
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        INSERT INTO reminder_manual_stops (day_msk, username, stopped_by_user_id, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(day_msk, username) DO UPDATE SET
+            stopped_by_user_id = excluded.stopped_by_user_id,
+            created_at = excluded.created_at
+        ''',
+        (day_msk.isoformat(), username, stopped_by_user_id, datetime.now()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def is_manual_stop_on_day(day_msk: date, username: str) -> bool:
+    if not username:
+        return False
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        SELECT 1
+        FROM reminder_manual_stops
+        WHERE day_msk = ? AND username = ?
+        LIMIT 1
+        ''',
+        (day_msk.isoformat(), username),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
 def get_last_upload_at_on_day(day_msk: date):
     conn = sqlite3.connect(str(DB_PATH), timeout=10)
     cursor = conn.cursor()
@@ -211,3 +349,41 @@ def get_ai_knowledge_base():
     best_performers = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return best_performers
+
+
+def add_operation_log(
+    event: str,
+    level: str = "INFO",
+    username: str | None = None,
+    status: str | None = None,
+    details: str | None = None,
+):
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        INSERT INTO operation_logs (created_at, level, event, username, status, details)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ''',
+        (datetime.now(), level, event, username, status, details),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_recent_operation_logs(limit: int = 50):
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        SELECT created_at, level, event, username, status, details
+        FROM operation_logs
+        ORDER BY id DESC
+        LIMIT ?
+        ''',
+        (limit,),
+    )
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows

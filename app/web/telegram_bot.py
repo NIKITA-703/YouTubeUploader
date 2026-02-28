@@ -5,7 +5,13 @@ from aiogram import Bot, types
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
-from app.database import has_any_upload_on_day
+from app.database import (
+    has_user_upload_on_day,
+    has_legacy_video_upload_on_day,
+    mark_user_upload_on_day,
+    mark_manual_stop_on_day,
+    is_manual_stop_on_day,
+)
 
 load_dotenv()
 
@@ -25,7 +31,7 @@ REMINDER_DEADLINE_HOUR = 21
 UPLOAD_LINK = "https://kellmibeatproduction.ppn.abrdns.com/"
 TEST_DELAY_SECONDS = 10
 TEST_CHAT_ID = 792336120
-TEST_USERNAME = "tr1pl_s"
+TEST_USERNAME = "whallythekidd"
 
 _reminder_loop_task: asyncio.Task | None = None
 _callback_loop_task: asyncio.Task | None = None
@@ -39,13 +45,13 @@ _kellmi_control_sent: set[tuple[str, str]] = set()
 
 # 0=Понедельник ... 6=Воскресенье
 WEEKDAY_DUTY = {
-    0: {"username": "kellmi", "display_name": "Kellmi", "tg": "http://t.me/k3lm1", "chat_id": 6805614227, "tg_user_id": 6805614227},
-    1: {"username": "tr1pl_s", "display_name": "tr1pl_s", "tg": "https://t.me/tr1pl_s", "chat_id": None, "tg_user_id": None},
+    0: {"username": "kellmi", "app_username": "kellmipenis", "display_name": "Kellmi", "tg": "http://t.me/k3lm1", "chat_id": 6805614227, "tg_user_id": 6805614227},
+    1: {"username": "whallythekidd", "display_name": "whallythekidd", "tg": "https://t.me/whallythekidd", "chat_id": 1189312079, "tg_user_id": 1189312079},
     2: {"username": "plak1!", "display_name": "plak1!", "tg": "https://t.me/plak1rplak1", "chat_id": 1201608748, "tg_user_id": 1201608748},
     3: {"username": "lvbuba", "display_name": "LVBUBA", "tg": "https://t.me/lvbuba_beats", "chat_id": 7726006922, "tg_user_id": 7726006922},
     4: {"username": "spacech1ld", "display_name": "spacech1ld", "tg": "https://t.me/twentyfive_mp3", "chat_id": 5311689474, "tg_user_id": 5311689474},
     5: {"username": "sunly", "display_name": "sunly", "tg": "https://t.me/prodsunly", "chat_id": 8444179977, "tg_user_id": 8444179977},
-    6: {"username": "nootropics", "display_name": "nootropics", "tg": "https://t.me/festry666", "chat_id": None, "tg_user_id": None},
+    6: {"username": "nootropics", "display_name": "nootropics", "tg": "https://t.me/festry666", "chat_id": 909353633, "tg_user_id": 909353633},
 }
 KELLMI_USERNAME = "kellmi"
 
@@ -110,6 +116,10 @@ def _get_member_by_username(username: str) -> dict | None:
         if member.get("username") == username:
             return member
     return None
+
+
+def _get_member_app_username(member: dict) -> str:
+    return (member.get("app_username") or member.get("username") or "").strip()
 
 
 def _get_kellmi_member() -> dict | None:
@@ -186,13 +196,24 @@ async def _send_reminder(member: dict, msk_now: datetime) -> bool:
         f"Пароль: <code>{password_str}</code>"
     )
 
-    await bot.send_message(
-        chat_id=str(target_chat_id),
-        text=text,
-        reply_markup=keyboard,
-        disable_web_page_preview=True,
-    )
-    return True
+    try:
+        await bot.send_message(
+            chat_id=str(target_chat_id),
+            text=text,
+            reply_markup=keyboard,
+            disable_web_page_preview=True,
+        )
+        print(
+            f"--> [TELEGRAM REMINDER SENT] user={username} chat_id={target_chat_id} "
+            f"time_msk={msk_now.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        return True
+    except Exception as e:
+        print(
+            f"--> [TELEGRAM REMINDER FAILED] user={username} chat_id={target_chat_id} "
+            f"error={e}"
+        )
+        return False
 
 
 async def _send_kellmi_stop_control(member: dict, day_iso: str):
@@ -201,10 +222,12 @@ async def _send_kellmi_stop_control(member: dict, day_iso: str):
     username = member["username"]
 
     if not kellmi_chat_id:
+        print("--> [TELEGRAM KELLMI CONTROL SKIP] Kellmi chat_id is not set")
         return
 
     key = (day_iso, username)
     if key in _kellmi_control_sent:
+        print(f"--> [TELEGRAM KELLMI CONTROL SKIP] Already sent for {username} {day_iso}")
         return
 
     stop_cb = f"stop:{username}:{day_iso}"
@@ -227,33 +250,53 @@ async def _send_kellmi_stop_control(member: dict, day_iso: str):
         ),
         reply_markup=keyboard,
     )
+    print(f"--> [TELEGRAM KELLMI CONTROL SENT] user={username} day={day_iso}")
     _kellmi_control_sent.add(key)
 
 
 async def _check_and_send_for_slot(msk_now: datetime):
     member = WEEKDAY_DUTY.get(msk_now.weekday())
     if not member:
+        print(f"--> [TELEGRAM REMINDER SKIP] No duty member for weekday={msk_now.weekday()}")
         return
 
     today = msk_now.date()
     today_iso = today.isoformat()
     username = member["username"]
+    print(f"--> [TELEGRAM REMINDER CHECK] user={username} slot={msk_now.strftime('%H:%M')} day={today_iso}")
 
     sent_key = (today_iso, username, msk_now.hour, msk_now.minute)
     if sent_key in _sent_cache:
+        print(f"--> [TELEGRAM REMINDER SKIP] Already processed slot for {username}")
         return
 
-    if has_any_upload_on_day(today):
+    app_username = _get_member_app_username(member)
+    producer_username = (member.get("username") or "").strip()
+    has_new_upload_flag = has_user_upload_on_day(app_username, today)
+    has_legacy_upload_flag = has_legacy_video_upload_on_day(producer_username, today)
+
+    if has_new_upload_flag or has_legacy_upload_flag:
+        if has_legacy_upload_flag and not has_new_upload_flag:
+            # Backfill marker so next checks do not depend on title parsing.
+            mark_user_upload_on_day(username=app_username, day_msk=today)
+        print(
+            f"--> [TELEGRAM REMINDER SKIP] Upload exists "
+            f"app_username={app_username} legacy={has_legacy_upload_flag} day={today_iso}"
+        )
         _sent_cache.add(sent_key)
         return
 
-    if (today_iso, username) in _manual_stop_cache:
+    if (today_iso, username) in _manual_stop_cache or is_manual_stop_on_day(today, username):
+        print(f"--> [TELEGRAM REMINDER SKIP] Stopped manually for {username} day={today_iso}")
+        _manual_stop_cache.add((today_iso, username))
         _sent_cache.add(sent_key)
         return
 
     reminder_sent = await _send_reminder(member=member, msk_now=msk_now)
     if reminder_sent:
         await _send_kellmi_stop_control(member=member, day_iso=today_iso)
+    else:
+        print(f"--> [TELEGRAM REMINDER RESULT] Not sent for {username}")
     _sent_cache.add(sent_key)
 
 
@@ -348,6 +391,13 @@ async def _handle_stop_callback(cb: types.CallbackQuery, username: str, day_iso:
         return
 
     _manual_stop_cache.add((day_iso, username))
+    try:
+        day_obj = datetime.strptime(day_iso, "%Y-%m-%d").date()
+        mark_manual_stop_on_day(day_obj, username, str(actual_user_id))
+    except Exception as stop_db_err:
+        print(f"--> [TELEGRAM STOP STORE ERROR] {stop_db_err}")
+
+    print(f"--> [TELEGRAM STOP SET] user={username} day={day_iso} by={actual_user_id}")
     await bot.answer_callback_query(cb.id, text="Напоминания остановлены ✅")
 
     try:

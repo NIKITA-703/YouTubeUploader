@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ops Logs</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=3">
+  <link rel="icon" href="/static/favicon.ico">
+</head>
+<body>
+<nav class="navbar navbar-expand navbar-dark bg-dark glitch-nav">
+  <div class="container-fluid d-flex align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <span class="navbar-brand mb-0 h1 glitch-brand">
+        <span class="text-danger">YouTube</span><span class="text-warning">Uploader</span>
+      </span>
+      <span class="navbar-text text-secondary glitch-subtitle">ADMIN // OPS LOGS</span>
+    </div>
+    <div class="ms-auto d-flex gap-2">
+      <a href="/" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="BACK"><span class="btn-text">BACK</span></a>
+      <form method="post" action="/logout" class="m-0">
+        <button type="submit" class="btn btn-outline-danger btn-sm glitch-btn glitch-btn--sm" data-text="LOGOUT"><span class="btn-text">LOGOUT</span></button>
+      </form>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-4">
+  <div class="card glitch-card-ui">
+    <div class="card-header glitch-card-header d-flex align-items-center justify-content-between">
+      <div class="glitch-card-title">Последние операции</div>
+      <button id="refresh_ops_btn" type="button" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="ОБНОВИТЬ">
+        <span class="btn-text">Обновить</span>
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="ops_logs" class="small text-muted">Загрузка...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const opsLogsEl = document.getElementById("ops_logs");
+  const refreshOpsBtn = document.getElementById("refresh_ops_btn");
+
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function renderOpsLogs(items) {
+    if (!items || items.length === 0) {
+      opsLogsEl.innerHTML = `<div class="text-muted">Логов пока нет.</div>`;
+      return;
+    }
+    opsLogsEl.innerHTML = items.map((it) => {
+      const ts = escapeHtml(String(it.created_at || ""));
+      const lvl = escapeHtml(String(it.level || "INFO"));
+      const ev = escapeHtml(String(it.event || ""));
+      const user = escapeHtml(String(it.username || "-"));
+      const st = escapeHtml(String(it.status || "-"));
+      const det = escapeHtml(String(it.details || ""));
+      return `
+        <div class="mb-2 pb-2 border-bottom border-secondary-subtle">
+          <div><b>${ev}</b> <span class="text-info">[${lvl}]</span></div>
+          <div class="text-muted">${ts}</div>
+          <div>user: <code>${user}</code> | status: <code>${st}</code></div>
+          ${det ? `<div class="text-secondary">${det}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function loadOpsLogs() {
+    const res = await fetch("/api/ops_logs?limit=100");
+    if (!res.ok) {
+      opsLogsEl.innerHTML = `<div class="text-danger">Ошибка загрузки логов (${res.status})</div>`;
+      return;
+    }
+    const data = await res.json();
+    renderOpsLogs(data.items || []);
+  }
+
+  refreshOpsBtn?.addEventListener("click", () => loadOpsLogs().catch(() => {}));
+  window.addEventListener("DOMContentLoaded", () => loadOpsLogs().catch(() => {}));
+</script>
+</body>
+</html>

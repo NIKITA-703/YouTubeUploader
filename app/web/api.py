@@ -20,7 +20,13 @@ from pyasn1_modules.rfc1157 import RequestID
 from starlette.responses import HTMLResponse
 from app.ai.tags import generate_youtube_tags
 from app.content.description import build_description
-from app.database import DB_PATH, add_new_entities_from_title
+from app.database import (
+    DB_PATH,
+    add_new_entities_from_title,
+    add_operation_log,
+    get_recent_operation_logs,
+    mark_user_upload_on_day,
+)
 from app.media.preview_fetch import download_thumbnail_for_beat
 from app.pipeline import upload_flow_web
 from app.web.common import PREVIEW_DIR, WEB_TMP_DIR, templates
@@ -34,6 +40,14 @@ from datetime import date, timedelta
 from googleapiclient.discovery import build
 
 router = APIRouter(prefix="/api")
+
+
+def _ensure_admin(request: Request) -> None:
+    username = (request.session.get("username") or "").strip().lower()
+    admin_usernames_raw = os.getenv("ADMIN_USERNAMES", "kellmipenis,kellmi")
+    admin_usernames = {u.strip().lower() for u in admin_usernames_raw.split(",") if u.strip()}
+    if username not in admin_usernames:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 PLAYLIST_ID_TO_NAME = {
     pid: name.title() + " Type Beat"
@@ -60,6 +74,13 @@ def api_previews():
         if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"):
             items.append({"name": p.name, "url": f"/previews/{p.name}"})
     return {"items": items}
+
+
+@router.get("/ops_logs")
+def api_ops_logs(request: Request, limit: int = 30):
+    _ensure_admin(request)
+    limit = max(1, min(limit, 200))
+    return {"items": get_recent_operation_logs(limit=limit)}
 
 
 @router.post("/gen_tags")
@@ -235,7 +256,14 @@ def api_upload(
     Загружаем видео на YouTube с автоматической очисткой места.
     """
     video_path = None
+    username = request.session.get("username", "unknown")
     try:
+        add_operation_log(
+            event="upload_started",
+            username=username,
+            status="running",
+            details="Request received",
+        )
         cfg = load_config()
         if not cfg.gemini_api_key:
             raise HTTPException(status_code=400, detail="GEMINI_API_KEY не задан")
@@ -307,6 +335,12 @@ def api_upload(
 
         # 4. ЗАГРУЗКА НА YOUTUBE
         youtube = get_youtube_client()
+        add_operation_log(
+            event="youtube_upload_started",
+            username=username,
+            status="running",
+            details=f"title={title}",
+        )
         result = upload_flow_web(
             youtube=youtube,
             media_file=str(video_path),
@@ -346,6 +380,21 @@ def api_upload(
                 )
             except Exception as tg_err:
                 print(f"--> [TG ERROR] Не удалось отправить сообщение {tg_err}")
+                add_operation_log(
+                    event="telegram_report_failed",
+                    level="WARNING",
+                    username=username,
+                    status="warning",
+                    details=str(tg_err),
+                )
+
+        add_operation_log(
+            event="upload_finished",
+            username=username,
+            status="success",
+            details=f"video_id={result.video_id}",
+        )
+        mark_user_upload_on_day(username=username, video_id=result.video_id)
 
         return JSONResponse({
             "ok": True,
@@ -358,10 +407,24 @@ def api_upload(
         })
 
     except HTTPException:
+        add_operation_log(
+            event="upload_http_error",
+            level="WARNING",
+            username=username,
+            status="failed",
+            details="HTTPException raised",
+        )
         raise
     except Exception as e:
         tb = traceback.format_exc()
         print("UPLOAD ERROR:\n", tb)
+        add_operation_log(
+            event="upload_exception",
+            level="ERROR",
+            username=username,
+            status="failed",
+            details=str(e),
+        )
         # Если это ошибка YouTube про теги, мы увидим её здесь
         raise HTTPException(status_code=500, detail=str(e))
 

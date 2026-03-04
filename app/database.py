@@ -4,7 +4,9 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-DB_PATH = BASE_DIR / "youtube_stats.db"
+DB_DIR = BASE_DIR / "db"
+DB_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DB_DIR / "youtube_stats.db"
 
 
 def init_db():

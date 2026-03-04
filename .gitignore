@@ -225,11 +225,14 @@ tmp/
 
 old/
 
-*.db
+db/*.db
+!db/.gitkeep
 
-client_secret*.json
-token*.json
-create_users.py
+data/client_secret*.json
+!data/.gitkeep
+data/token*.json
+tools/create_users.py
+!data/.gitkeep
 
 photo/
 previews/

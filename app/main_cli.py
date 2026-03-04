@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 
 from app.config import load_config
 from app.pipeline import upload_flow
@@ -24,7 +25,7 @@ def main():
 
     client_secret_path = os.getenv(
         "YOUTUBE_CLIENT_SECRET",
-        r"D:\PyCharm\YouTubeUploader\client_secret.apps.googleusercontent.com.json"
+        str(Path(__file__).resolve().parents[1] / "data" / "client_secret.apps.googleusercontent.com.json"),
     )
 
     service, credentials = authenticate_youtube(client_secret_path)

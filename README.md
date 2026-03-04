@@ -24,13 +24,20 @@
 - `app/database.py` — инициализация/работа с БД.
 - `app/web/templates/` — HTML-шаблоны.
 - `app/web/static/` — фронтенд JS/CSS.
-- `create_users.py` — сидирование пользователей в БД.
+- `tools/create_users.py` — сидирование пользователей в БД.
+- `tools/cleanup_media.py` — очистка временных медиа-файлов.
+- `tools/sync_stats.py` — синхронизация YouTube-статистики.
+- `data/` — OAuth JSON-файлы (`client_secret*.json`, `token*.json`).
+- `db/` — SQLite база проекта.
 
 ## База данных
-Используется `youtube_stats.db` (SQLite), основные таблицы:
+Используется `db/youtube_stats.db` (SQLite), основные таблицы:
 - `users`
 - `videos`
 - `known_entities`
+- `operation_logs`
+- `user_daily_uploads`
+- `reminder_manual_stops`
 
 Инициализация таблиц вызывается автоматически на старте сервера (`init_db()`).
 
@@ -70,6 +77,7 @@ TELEGRAM_CHAT_THREAD_ID=11
 YOUTUBE_CLIENT_SECRET=D:\path\client_secret.json
 PREVIEW_DIR=D:\YouTubeUploader\photo
 WEB_TMP_DIR=D:\YouTubeUploader\web_tmp
+STATIC_DIR=D:\YouTubeUploader\app\web\static
 ```
 
 ## Запуск веб-приложения
@@ -108,11 +116,12 @@ Remove-Item Env:TELEGRAM_TEST_MODE
 Актуальная логика в `app/web/telegram_bot.py`:
 - Время считается по МСК.
 - Напоминания битмарю идут в ЛС по `chat_id` из `WEEKDAY_DUTY`.
-- Если за текущий день уже есть upload в БД (`videos.upload_date`) — напоминания не отправляются.
+- Если за текущий день уже есть upload в БД (`user_daily_uploads`) — напоминания не отправляются.
+- Для старых записей есть fallback-проверка по `videos`.
 - Преддедлайн: одно напоминание в `20:30`.
 - После дедлайна (`21:00`) — каждые 30 минут до `00:00`.
 - Кнопка у битмаря: `✅ Принял, увидел`.
-- У Kellmi: `❌ прекратить напоминать` (останавливает напоминания на текущий день для выбранного битмаря).
+- У Kellmi: `❌ прекратить напоминать` (останавливает напоминания на текущий день для выбранного битмаря, флаг хранится в БД).
 - Отчет о факте загрузки видео (`send_upload_report`) идет в общий чат/тред.
 
 ## Валидации в UI/API
@@ -124,19 +133,19 @@ Remove-Item Env:TELEGRAM_TEST_MODE
 - Сидирование пользователей:
 
 ```powershell
-.\.venv\Scripts\python.exe create_users.py
+.\.venv\Scripts\python.exe tools/create_users.py
 ```
 
 - Очистка медиа:
 
 ```powershell
-.\.venv\Scripts\python.exe cleanup_media.py
+.\.venv\Scripts\python.exe tools/cleanup_media.py
 ```
 
 - Синхронизация статистики:
 
 ```powershell
-.\.venv\Scripts\python.exe sync_stats.py
+.\.venv\Scripts\python.exe tools/sync_stats.py
 ```
 
 ## Troubleshooting

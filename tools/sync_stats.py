@@ -1,5 +1,12 @@
 import os
 import sqlite3
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from app.youtube.auth import authenticate_youtube
 from googleapiclient.discovery import build
 from app.database import update_video_stats, DB_PATH
@@ -10,7 +17,7 @@ def sync():
 
     client_secret_path = os.getenv(
         "YOUTUBE_CLIENT_SECRET",
-        r"client_secret.apps.googleusercontent.com.json",
+        str(PROJECT_ROOT / "data" / "client_secret.apps.googleusercontent.com.json"),
     )
 
     if not os.path.exists(client_secret_path):

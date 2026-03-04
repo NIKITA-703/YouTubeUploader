@@ -183,11 +183,11 @@ CLEANUP_DRY_RUN=1   # ← убрать после первого теста
 
 
 source venv/bin/activate
-python cleanup_media.py
-CLEANUP_DRY_RUN=1 python cleanup_media.py
+python tools/cleanup_media.py
+CLEANUP_DRY_RUN=1 python tools/cleanup_media.py
 
 crontab -e
-30 6 * * * cd /srv/youtubeuploader && /srv/youtubeuploader/venv/bin/python cleanup_media.py >> /srv/youtubeuploader/cleanup.log 2>&1
+30 6 * * * cd /srv/youtubeuploader && /srv/youtubeuploader/venv/bin/python tools/cleanup_media.py >> /srv/youtubeuploader/cleanup.log 2>&1
 
 
 """

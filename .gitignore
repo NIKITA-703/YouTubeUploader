@@ -221,6 +221,7 @@ WEB_TMP_DIR
 PREVIEW_DIR
 
 web_tmp/*
+!web_tmp/.gitkeep
 tmp/
 
 old/
@@ -232,4 +233,5 @@ token*.json
 create_users.py
 
 photo/*
+!photo/.gitkeep
 previews/

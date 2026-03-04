@@ -220,7 +220,7 @@ __marimo__/
 WEB_TMP_DIR
 PREVIEW_DIR
 
-web_tmp/
+web_tmp/*
 tmp/
 
 old/
@@ -231,5 +231,5 @@ client_secret*.json
 token*.json
 create_users.py
 
-photo/
+photo/*
 previews/

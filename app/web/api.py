@@ -6,9 +6,10 @@ import traceback
 import shutil
 import uuid
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
+from calendar import monthrange
 
-from app.web.telegram_bot import send_upload_report
+from app.web.telegram_bot import send_upload_report, WEEKDAY_DUTY
 
 from typing import Optional
 from fastapi import BackgroundTasks
@@ -26,6 +27,8 @@ from app.database import (
     add_operation_log,
     get_recent_operation_logs,
     mark_user_upload_on_day,
+    has_user_upload_on_day,
+    has_legacy_video_upload_on_day,
 )
 from app.media.preview_fetch import download_thumbnail_for_beat
 from app.pipeline import upload_flow_web
@@ -67,6 +70,40 @@ def _validate_bpm_or_raise(bpm_raw: str) -> str:
     return str(value)
 
 
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for v in values:
+        val = (v or "").strip().lower()
+        if not val or val in seen:
+            continue
+        seen.add(val)
+        out.append(val)
+    return out
+
+
+def _find_duty_member_for_app_user(app_username: str) -> tuple[int | None, dict | None]:
+    normalized = (app_username or "").strip().lower()
+    if not normalized:
+        return None, None
+    for weekday, member in WEEKDAY_DUTY.items():
+        app_name = (member.get("app_username") or member.get("username") or "").strip().lower()
+        if app_name == normalized:
+            return weekday, member
+    return None, None
+
+
+def _day_msk_from_publish_at_utc(publish_at_utc: str | None) -> date | None:
+    if not publish_at_utc:
+        return None
+    try:
+        dt_utc = datetime.fromisoformat(publish_at_utc.replace("Z", "+00:00"))
+    except Exception:
+        return None
+    msk_tz = timezone(timedelta(hours=3))
+    return dt_utc.astimezone(msk_tz).date()
+
+
 @router.get("/previews")
 def api_previews():
     items = []
@@ -81,6 +118,58 @@ def api_ops_logs(request: Request, limit: int = 30):
     _ensure_admin(request)
     limit = max(1, min(limit, 200))
     return {"items": get_recent_operation_logs(limit=limit)}
+
+
+@router.get("/calendar_duty_status")
+def api_calendar_duty_status(request: Request, year: int, month: int):
+    username = (request.session.get("username") or "").strip().lower()
+    if not username:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if year < 2020 or year > 2100:
+        raise HTTPException(status_code=400, detail="Invalid year")
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Invalid month")
+
+    duty_weekday, duty_member = _find_duty_member_for_app_user(username)
+    if duty_weekday is None or duty_member is None:
+        return {"duty_weekday": None, "days": {}}
+
+    producer_username = (duty_member.get("username") or "").strip().lower()
+    usernames_to_check = _dedupe_preserve_order([username, producer_username])
+
+    msk_tz = timezone(timedelta(hours=3))
+    today_msk = datetime.now(msk_tz).date()
+    _, max_day = monthrange(year, month)
+
+    day_states: dict[str, str] = {}
+    for day_num in range(1, max_day + 1):
+        day_obj = date(year, month, day_num)
+        if day_obj.weekday() != duty_weekday:
+            continue
+        # Highlight only актуальные даты: сегодня и будущее.
+        # Прошедшие дни не подсвечиваем.
+        if day_obj < today_msk:
+            continue
+
+        uploaded = False
+        for uname in usernames_to_check:
+            if has_user_upload_on_day(uname, day_obj):
+                uploaded = True
+                break
+
+        if not uploaded:
+            for uname in usernames_to_check:
+                if has_legacy_video_upload_on_day(uname, day_obj):
+                    uploaded = True
+                    break
+
+        day_states[day_obj.isoformat()] = "uploaded" if uploaded else "missed"
+
+    return {
+        "duty_weekday": duty_weekday,
+        "days": day_states,
+    }
 
 
 @router.post("/gen_tags")
@@ -257,12 +346,13 @@ def api_upload(
     """
     video_path = None
     username = request.session.get("username", "unknown")
+    op_id = uuid.uuid4().hex[:10]
     try:
         add_operation_log(
             event="upload_started",
             username=username,
             status="running",
-            details="Request received",
+            details=json.dumps({"op_id": op_id, "step": "request_received"}, ensure_ascii=False),
         )
         cfg = load_config()
         if not cfg.gemini_api_key:
@@ -339,7 +429,7 @@ def api_upload(
             event="youtube_upload_started",
             username=username,
             status="running",
-            details=f"title={title}",
+            details=json.dumps({"op_id": op_id, "title": title}, ensure_ascii=False),
         )
         result = upload_flow_web(
             youtube=youtube,
@@ -392,9 +482,23 @@ def api_upload(
             event="upload_finished",
             username=username,
             status="success",
-            details=f"video_id={result.video_id}",
+            details=json.dumps(
+                {
+                    "op_id": op_id,
+                    "video_id": result.video_id,
+                    "video_url": video_url,
+                    "title": title,
+                    "publish_at": result.publish_at,
+                    "uploaded_at_msk": datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M:%S"),
+                },
+                ensure_ascii=False,
+            ),
         )
-        mark_user_upload_on_day(username=username, video_id=result.video_id)
+        mark_user_upload_on_day(
+            username=username,
+            video_id=result.video_id,
+            day_msk=_day_msk_from_publish_at_utc(result.publish_at),
+        )
 
         return JSONResponse({
             "ok": True,
@@ -412,7 +516,7 @@ def api_upload(
             level="WARNING",
             username=username,
             status="failed",
-            details="HTTPException raised",
+            details=json.dumps({"op_id": op_id, "error": "HTTPException raised"}, ensure_ascii=False),
         )
         raise
     except Exception as e:
@@ -423,7 +527,7 @@ def api_upload(
             level="ERROR",
             username=username,
             status="failed",
-            details=str(e),
+            details=json.dumps({"op_id": op_id, "error": str(e)}, ensure_ascii=False),
         )
         # Если это ошибка YouTube про теги, мы увидим её здесь
         raise HTTPException(status_code=500, detail=str(e))

@@ -209,25 +209,136 @@ async function loadGallery() {
 function renderOpsLogs(items) {
   if (!opsLogsEl) return;
   if (!items || items.length === 0) {
-    opsLogsEl.innerHTML = `<div class="text-muted">Логов пока нет.</div>`;
+    opsLogsEl.innerHTML = `<div class="text-muted">No logs yet.</div>`;
     return;
   }
-  opsLogsEl.innerHTML = items.map((it) => {
+
+  const parseDetails = (raw) => {
+    const text = String(raw || "").trim();
+    if (!text) return null;
+    if (!(text.startsWith("{") || text.startsWith("["))) return null;
+    try {
+      return JSON.parse(text);
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const pickVideoUrl = (detailsObj, detailsText) => {
+    if (detailsObj?.video_url) return String(detailsObj.video_url);
+    if (detailsObj?.video_id) return `https://youtu.be/${detailsObj.video_id}`;
+    const m = String(detailsText || "").match(/video_id=([A-Za-z0-9_-]+)/);
+    if (m) return `https://youtu.be/${m[1]}`;
+    return "";
+  };
+
+  const used = new Set();
+  const cards = [];
+
+  for (let i = 0; i < items.length; i++) {
+    if (used.has(i)) continue;
+    const finish = items[i];
+    const finishEvent = String(finish.event || "");
+    if (finishEvent !== "upload_finished") continue;
+
+    const finishDetailsRaw = String(finish.details || "");
+    const finishDetailsObj = parseDetails(finishDetailsRaw) || {};
+    const opId = String(finishDetailsObj.op_id || "").trim();
+    const userRaw = String(finish.username || "-");
+    const tsRaw = String(finish.created_at || "");
+    const lvl = escapeHtml(String(finish.level || "INFO"));
+    const st = escapeHtml(String(finish.status || "-"));
+    let titleRaw = String(finishDetailsObj.title || "").trim();
+    const uploadedAt = escapeHtml(String(finishDetailsObj.uploaded_at_msk || tsRaw));
+    const publishAt = escapeHtml(String(finishDetailsObj.publish_at || ""));
+    const videoUrl = escapeHtml(pickVideoUrl(finishDetailsObj, finishDetailsRaw));
+
+    const techRows = [];
+    for (let j = i + 1; j < items.length; j++) {
+      if (used.has(j)) continue;
+      const row = items[j];
+      const rowEvent = String(row.event || "");
+      if (rowEvent === "upload_finished") break;
+      if (rowEvent !== "upload_started" && rowEvent !== "youtube_upload_started") continue;
+      if (String(row.username || "") !== userRaw) continue;
+
+      const rowDetailsRaw = String(row.details || "");
+      const rowDetailsObj = parseDetails(rowDetailsRaw) || {};
+      const rowOpId = String(rowDetailsObj.op_id || "").trim();
+      if (opId && rowOpId && opId !== rowOpId) continue;
+
+      used.add(j);
+      const titleMatch = rowDetailsRaw.match(/title=(.+)/i);
+      if (!titleRaw) {
+        titleRaw = String(rowDetailsObj.title || (titleMatch ? titleMatch[1].trim() : "") || "").trim();
+      }
+
+      techRows.push({
+        event: escapeHtml(rowEvent),
+        time: escapeHtml(String(row.created_at || "")),
+        status: escapeHtml(String(row.status || "-")),
+        details: escapeHtml(rowDetailsObj && Object.keys(rowDetailsObj).length ? JSON.stringify(rowDetailsObj, null, 2) : rowDetailsRaw),
+      });
+    }
+
+    used.add(i);
+    const finishPretty = Object.keys(finishDetailsObj).length
+      ? escapeHtml(JSON.stringify(finishDetailsObj, null, 2))
+      : "";
+    const title = escapeHtml(titleRaw);
+    const techHtml = techRows.map((r) => `
+      <div class="ops-tech-row">
+        <div><b>${r.event}</b> | <code>${r.time}</code> | <code>${r.status}</code></div>
+        ${r.details ? `<pre class="ops-pre">${r.details}</pre>` : ""}
+      </div>
+    `).join("");
+
+    cards.push(`
+      <div class="ops-log-card mb-2 pb-2 border-bottom border-secondary-subtle">
+        <div class="ops-log-head"><b>upload_finished</b> <span class="text-info">[${lvl}]</span></div>
+        <div class="ops-log-grid">
+          <div><span class="ops-label">Who:</span> <code>${escapeHtml(userRaw)}</code></div>
+          <div><span class="ops-label">When:</span> <code>${uploadedAt}</code></div>
+          <div><span class="ops-label">Title:</span> ${title || "<span class='text-muted'>-</span>"}</div>
+          <div><span class="ops-label">Link:</span> ${videoUrl ? `<a href="${videoUrl}" target="_blank" rel="noopener">${videoUrl}</a>` : "<span class='text-muted'>-</span>"}</div>
+          <div><span class="ops-label">Status:</span> <code>${st}</code></div>
+          ${publishAt ? `<div><span class="ops-label">Schedule:</span> <code>${publishAt}</code></div>` : ""}
+        </div>
+        <details class="ops-details mt-2">
+          <summary>Details</summary>
+          ${finishPretty ? `<pre class="ops-pre">${finishPretty}</pre>` : "<div class='text-muted small mt-2'>No root metadata in upload_finished.</div>"}
+          ${techHtml || "<div class='text-muted small mt-2'>No technical sub-events.</div>"}
+        </details>
+      </div>
+    `);
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    if (used.has(i)) continue;
+    const it = items[i];
+    const evRaw = String(it.event || "");
+    if (evRaw === "upload_started" || evRaw === "youtube_upload_started") continue;
     const ts = escapeHtml(String(it.created_at || ""));
     const lvl = escapeHtml(String(it.level || "INFO"));
-    const ev = escapeHtml(String(it.event || ""));
+    const ev = escapeHtml(evRaw);
     const user = escapeHtml(String(it.username || "-"));
     const st = escapeHtml(String(it.status || "-"));
-    const det = escapeHtml(String(it.details || ""));
-    return `
-      <div class="mb-2 pb-2 border-bottom border-secondary-subtle">
+    const detailsRaw = String(it.details || "");
+    const detailsObj = parseDetails(detailsRaw);
+    const det = escapeHtml(detailsRaw);
+    const detailsPretty = detailsObj ? escapeHtml(JSON.stringify(detailsObj, null, 2)) : det;
+
+    cards.push(`
+      <div class="ops-log-card mb-2 pb-2 border-bottom border-secondary-subtle">
         <div><b>${ev}</b> <span class="text-info">[${lvl}]</span></div>
         <div class="text-muted">${ts}</div>
         <div>user: <code>${user}</code> | status: <code>${st}</code></div>
-        ${det ? `<div class="text-secondary">${det}</div>` : ""}
+        ${det ? `<details class="ops-details mt-1"><summary>Details</summary><pre class="ops-pre">${detailsPretty}</pre></details>` : ""}
       </div>
-    `;
-  }).join("");
+    `);
+  }
+
+  opsLogsEl.innerHTML = cards.join("");
 }
 
 async function loadOpsLogs() {

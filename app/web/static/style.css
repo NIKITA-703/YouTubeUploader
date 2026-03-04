@@ -2765,3 +2765,47 @@ span.flatpickr-weekday {
   background-color: #0d0d0d;
   color: #e5e5e5;
 }
+
+/* OPS logs */
+.ops-log-card {
+  padding-top: 0.15rem;
+}
+
+.ops-log-head {
+  margin-bottom: 0.4rem;
+}
+
+.ops-log-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.15rem 1rem;
+}
+
+.ops-label {
+  color: rgba(229, 229, 229, 0.72);
+}
+
+.ops-details summary {
+  cursor: pointer;
+  color: rgba(0, 242, 234, 0.9);
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  user-select: none;
+}
+
+.ops-pre {
+  margin-top: 0.45rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid rgba(0, 242, 234, 0.22);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(229, 229, 229, 0.78);
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 8px;
+}
+
+.ops-tech-row {
+  margin-top: 0.55rem;
+}

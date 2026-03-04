@@ -346,12 +346,13 @@ def api_upload(
     """
     video_path = None
     username = request.session.get("username", "unknown")
+    op_id = uuid.uuid4().hex[:10]
     try:
         add_operation_log(
             event="upload_started",
             username=username,
             status="running",
-            details="Request received",
+            details=json.dumps({"op_id": op_id, "step": "request_received"}, ensure_ascii=False),
         )
         cfg = load_config()
         if not cfg.gemini_api_key:
@@ -428,7 +429,7 @@ def api_upload(
             event="youtube_upload_started",
             username=username,
             status="running",
-            details=f"title={title}",
+            details=json.dumps({"op_id": op_id, "title": title}, ensure_ascii=False),
         )
         result = upload_flow_web(
             youtube=youtube,
@@ -481,7 +482,17 @@ def api_upload(
             event="upload_finished",
             username=username,
             status="success",
-            details=f"video_id={result.video_id}",
+            details=json.dumps(
+                {
+                    "op_id": op_id,
+                    "video_id": result.video_id,
+                    "video_url": video_url,
+                    "title": title,
+                    "publish_at": result.publish_at,
+                    "uploaded_at_msk": datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M:%S"),
+                },
+                ensure_ascii=False,
+            ),
         )
         mark_user_upload_on_day(
             username=username,
@@ -505,7 +516,7 @@ def api_upload(
             level="WARNING",
             username=username,
             status="failed",
-            details="HTTPException raised",
+            details=json.dumps({"op_id": op_id, "error": "HTTPException raised"}, ensure_ascii=False),
         )
         raise
     except Exception as e:
@@ -516,7 +527,7 @@ def api_upload(
             level="ERROR",
             username=username,
             status="failed",
-            details=str(e),
+            details=json.dumps({"op_id": op_id, "error": str(e)}, ensure_ascii=False),
         )
         # Если это ошибка YouTube про теги, мы увидим её здесь
         raise HTTPException(status_code=500, detail=str(e))

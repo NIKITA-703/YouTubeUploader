@@ -228,6 +228,8 @@ old/
 
 *.db
 
+!.env.example
+
 client_secret*.json
 token*.json
 create_users.py

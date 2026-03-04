@@ -848,6 +848,16 @@ textarea.glitch-input:focus {
 }
 
 
+#preview_img {
+  transition: opacity 0.3s ease; /* Плавность появления/исчезновения */
+}
+
+/* Класс, который будет "гасить" картинку */
+.img-loading {
+  opacity: 0 !important;
+}
+
+
 /* =========================
    UPLOAD BUTTON (Clean & Fixed Glitch)
 ========================= */
@@ -2539,4 +2549,177 @@ textarea.glitch-input:focus {
 @keyframes progress-bar-stripes {
   from { background-position: 40px 0; }
   to { background-position: 0 0; }
+}
+
+
+/* Оранжевое предупреждение (Карточка) */
+.glitch-ai-warning {
+  background: rgba(255, 152, 0, 0.03) !important; /* Очень слабый фон */
+  border: 1px solid rgba(255, 152, 0, 0.4) !important; /* Мягкая оранжевая рамка */
+  color: #ff9800 !important;
+
+  padding: 18px;
+  margin-top: 20px;
+  border-radius: 8px; /* Скругление как у красной ошибки */
+
+  font-family: "Fira Code", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+
+  /* Мягкое оранжевое свечение */
+  box-shadow: 0 0 15px rgba(255, 152, 0, 0.1);
+  position: relative;
+}
+
+.glitch-ai-warning b {
+  color: #ffb74d; /* Чуть более светлый оранжевый для заголовка */
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.glitch-ai-warning small {
+  display: block;
+  margin-top: 10px;
+  color: rgba(255, 152, 0, 0.6); /* Приглушенный текст для доп. инфо */
+  font-size: 0.75rem;
+}
+
+/* =========================
+   CUSTOM FLATPICKR
+========================= */
+
+.flatpickr-months .flatpickr-month{
+    background: #0d0d0d !important;
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months .flatpickr-monthDropdown-month{
+    background-color: #0d0d0d !important;
+}
+
+.flatpickr-calendar {
+  background: #0d0d0d !important;
+  border: 1px solid #ffffff !important;
+  box-shadow: 0 0 20px rgba(0, 242, 234, 0.2) !important;
+  width: 310px !important;
+}
+
+/* ВЕРХНЯЯ ПЛАШКА (Месяц и Год) */
+.flatpickr-months {
+  background: #0d0d0d !important; /* Убираем серый фон */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* Название месяца (селект) */
+.flatpickr-monthDropdown-months {
+  background: #0d0d0d !important;
+  color: #00f2ea !important;
+  font-family: 'Fira Code', monospace;
+}
+
+/* Инпут года */
+.numInput.cur-year {
+  color: #00f2ea !important;
+  background: transparent !important;
+}
+
+/* Стрелочки переключения месяцев */
+.flatpickr-prev-month svg, .flatpickr-next-month svg {
+  fill: #00f2ea !important;
+}
+
+.flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg {
+  fill: #a855f7 !important;
+}
+
+/* ДНИ НЕДЕЛИ */
+span.flatpickr-weekday {
+  color: rgba(0, 242, 234, 0.4) !important;
+  background: #0d0d0d !important;
+}
+
+/* СЕТКА КАЛЕНДАРЯ */
+.flatpickr-innerContainer {
+  background: #0d0d0d !important;
+}
+
+/* ВЫБРАННЫЙ ДЕНЬ */
+.flatpickr-day.selected {
+  background: #00f2ea !important;
+  border-color: #00f2ea !important;
+  color: #000 !important;
+  box-shadow: 0 0 15px #00f2ea !important;
+}
+
+/* СЕГОДНЯШНИЙ ДЕНЬ */
+.flatpickr-day.today {
+  border-color: #a855f7 !important;
+  color: #a855f7 !important;
+}
+
+/* БЛОК ВРЕМЕНИ */
+.flatpickr-time {
+  height: 60px !important;
+  background: #050505 !important; /* Еще темнее для контраста */
+  border-top: 1px solid rgba(255, 255, 255, 0.35) !important;
+}
+
+.flatpickr-time input {
+  color: #00f2ea !important;
+  font-size: 1.3rem !important;
+  font-weight: bold !important;
+}
+
+.flatpickr-time .flatpickr-time-separator {
+  color: #a855f7 !important;
+  font-size: 1.3rem !important;
+}
+
+/* Скрываем стандартные маленькие стрелочки */
+.flatpickr-time .numInputWrapper span {
+  display: none !important;
+}
+
+/* Неактивные дни */
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: #333 !important;
+}
+
+/* KEY select: unified look across browsers (native dropdown has platform limits) */
+#key.glitch-input.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: rgba(0, 0, 0, 0.25) !important;
+  color: var(--ui-text) !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: 10px !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  padding-right: 2.2rem !important;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ui-primary) 50%),
+    linear-gradient(135deg, var(--ui-primary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) calc(1em + 2px),
+    calc(100% - 11px) calc(1em + 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.glitch-field:focus-within #key.glitch-input.form-select,
+#key.glitch-input.form-select:focus {
+  border-color: var(--ui-border-strong) !important;
+  outline: none !important;
+  box-shadow:
+    0 0 0 .2rem rgba(0, 242, 234, 0.12),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Dropdown list colors where browser allows styling */
+#key.glitch-input.form-select option {
+  background-color: #0d0d0d;
+  color: #e5e5e5;
 }

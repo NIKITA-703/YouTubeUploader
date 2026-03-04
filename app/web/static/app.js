@@ -30,6 +30,8 @@ const keyEl = document.getElementById("key");
 // gallery
 const galleryEl = document.getElementById("preview_gallery");
 const refreshGalleryBtn = document.getElementById("refresh_gallery_btn");
+const opsLogsEl = document.getElementById("ops_logs");
+const refreshOpsBtn = document.getElementById("refresh_ops_btn");
 
 const successSound = new Audio('/static/sounds/success.mp3');
 successSound.volume = 0.5; // Уровень громкости (от 0 до 1)
@@ -40,6 +42,16 @@ const lightboxCaption = document.getElementById("lightbox_caption");
 
 function setStatus(msg) {
   if (statusEl) statusEl.textContent = msg || "";
+}
+
+function normalizeAndValidateBpm(raw) {
+  const cleaned = String(raw || "").replace(/\D+/g, "").trim();
+  if (!cleaned) return "";
+  const value = Number(cleaned);
+  if (!Number.isInteger(value) || value < 0 || value > 250) {
+    throw new Error("BPM должен быть числом от 0 до 250");
+  }
+  return String(value);
 }
 
 function hideResult() {
@@ -194,6 +206,40 @@ async function loadGallery() {
   renderGallery(parsed.data.items || []);
 }
 
+function renderOpsLogs(items) {
+  if (!opsLogsEl) return;
+  if (!items || items.length === 0) {
+    opsLogsEl.innerHTML = `<div class="text-muted">Логов пока нет.</div>`;
+    return;
+  }
+  opsLogsEl.innerHTML = items.map((it) => {
+    const ts = escapeHtml(String(it.created_at || ""));
+    const lvl = escapeHtml(String(it.level || "INFO"));
+    const ev = escapeHtml(String(it.event || ""));
+    const user = escapeHtml(String(it.username || "-"));
+    const st = escapeHtml(String(it.status || "-"));
+    const det = escapeHtml(String(it.details || ""));
+    return `
+      <div class="mb-2 pb-2 border-bottom border-secondary-subtle">
+        <div><b>${ev}</b> <span class="text-info">[${lvl}]</span></div>
+        <div class="text-muted">${ts}</div>
+        <div>user: <code>${user}</code> | status: <code>${st}</code></div>
+        ${det ? `<div class="text-secondary">${det}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadOpsLogs() {
+  const res = await fetch("/api/ops_logs?limit=30");
+  const parsed = await safeJson(res);
+  if (!parsed.ok) {
+    if (opsLogsEl) opsLogsEl.innerHTML = `<div class="text-danger">Ошибка загрузки логов</div>`;
+    return;
+  }
+  renderOpsLogs(parsed.data.items || []);
+}
+
 regenHashtagsBtn?.addEventListener("click", async () => {
   try {
     const title = (titleEl.value || "").trim();
@@ -223,10 +269,14 @@ regenHashtagsBtn?.addEventListener("click", async () => {
 });
 
 function openZoom(src, caption) {
+  if (!lightbox || !lightboxImg) return;
+
+  // Очищаем старый src, чтобы не было "призрака"
+  lightboxImg.src = "";
+
   lightbox.style.display = "block";
   lightboxImg.src = src;
   lightboxCaption.innerHTML = caption || "PREVIEW_ENLARGED";
-  // Отключаем прокрутку страницы при открытом фото
   document.body.style.overflow = "hidden";
 }
 
@@ -293,23 +343,34 @@ clearBtn?.addEventListener("click", () => {
 
 fillBtn?.addEventListener("click", async () => {
   try {
+    // Очищаем прошлые результаты и сбрасываем цвет статуса
     hideResult();
+    if (statusEl) statusEl.style.color = "";
+
+     previewImg.classList.add("img-loading");
 
     const title = (titleEl.value || "").trim();
-    if (!title) throw new Error("Введите название");
+    if (!title) {
+        previewImg.classList.remove("img-loading"); // Возвращаем если ошибка
+        throw new Error("Введите название");
+    }
+
+    const bpmValue = normalizeAndValidateBpm(bpmEl?.value || "");
+    if (bpmEl) bpmEl.value = bpmValue;
 
     setStatus("Gemini + превью: работаю...");
 
     const fd = new FormData();
     fd.append("title", title);
     fd.append("purchase_link", (purchaseLinkEl.value || "").trim());
-    fd.append("bpm", bpmEl.value);
+    fd.append("bpm", bpmValue);
     fd.append("key", keyEl.value);
 
     const res = await fetch("/api/fill", { method: "POST", body: fd });
     const parsed = await safeJson(res);
 
     if (!parsed.ok) {
+      previewImg.classList.remove("img-loading"); // Возвращаем если ошибка
       throw new Error(parsed.data?.detail || parsed.raw || "Ошибка /api/fill");
     }
 
@@ -317,12 +378,40 @@ fillBtn?.addEventListener("click", async () => {
     hashtagsEl.value = data.hashtags || "";
     seoEl.value = data.seo_tags || "";
 
-    previewImg.src = (data.preview_url || "") + "?t=" + Date.now();
-    previewFilenameEl.value = data.preview_filename || "";
+    // Обновляем фото
+    let previewStatus = "";
+    if (data.preview_url) {
+      // 2. Устанавливаем обработчик: когда НОВАЯ картинка загрузится — ВКЛЮЧАЕМ её
+      previewImg.onload = () => {
+          previewImg.classList.remove("img-loading"); // <-- ФИКС
+      };
+
+      previewImg.src = data.preview_url + "?t=" + Date.now();
+      previewFilenameEl.value = data.preview_filename || "";
+      previewStatus = " + Превью найдено";
+    } else {
+      // Если картинки нет — возвращаем видимость (для пустой заглушки)
+      previewImg.classList.remove("img-loading");
+    }
 
     await loadGallery();
-    setStatus("Готово ✅");
+
+    if (data.warning) {
+      resultBox.innerHTML = `
+        <div class="glitch-ai-warning">
+          <b>AI_STATUS // SEMI_OFFLINE</b>
+          ${data.warning}
+          <small>> Поля заполнены стандартными тегами. <br> Проверьте их вручную.</small>
+        </div>
+      `;
+      resultBox.classList.remove("d-none");
+      setStatus("⚠️ Готово (есть замечания)" + previewStatus);
+    } else {
+      setStatus("Готово ✅" + previewStatus);
+    }
+
   } catch (e) {
+    previewImg.classList.remove("img-loading"); // Возвращаем видимость при любой ошибке
     setStatus("Ошибка");
     showError("Ошибка: " + e.message);
   }
@@ -400,6 +489,58 @@ previewFileEl?.addEventListener("change", () => {
   setStatus("Выбрано своё превью ✅");
 });
 
+function formatDate(isoString) {
+  if (!isoString) return "IMMEDIATE_RELEASE";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return isoString;
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  flatpickr("#publish_dt", {
+    locale: "ru",               // Подключаем русский язык
+    firstDayOfWeek: 1,          // Пн - первый день недели
+    enableTime: true,
+    dateFormat: "Y-m-d H:i",
+    time_24hr: true,
+    minuteIncrement: 5,
+    minDate: "today",
+
+    onReady: function(selectedDates, dateStr, instance) {
+      const hourInput = instance.timeContainer.querySelector(".flatpickr-hour");
+      const minuteInput = instance.timeContainer.querySelector(".flatpickr-minute");
+
+      const handleWheelScroll = (e, input, isHour) => {
+        e.preventDefault();
+
+        // Берем уже выбранную дату или текущую как базу
+        let date = instance.selectedDates[0] || new Date();
+        let val = isHour ? date.getHours() : date.getMinutes();
+        const delta = e.deltaY < 0 ? 1 : -1;
+
+        if (isHour) {
+          val += delta;
+          if (val > 23) val = 0;
+          if (val < 0) val = 23;
+          date.setHours(val);
+        } else {
+          // Шаг 5 минут
+          val += (delta * 5);
+          if (val > 55) val = 0;
+          if (val < 0) val = 55;
+          date.setMinutes(val);
+        }
+
+        // Устанавливаем обновленную дату обратно в календарь
+        instance.setDate(date, true);
+      };
+
+      if (hourInput) hourInput.addEventListener("wheel", (e) => handleWheelScroll(e, hourInput, true));
+      if (minuteInput) minuteInput.addEventListener("wheel", (e) => handleWheelScroll(e, minuteInput, false));
+    }
+  });
+});
 
 uploadBtn?.addEventListener("click", () => {
   try {
@@ -411,6 +552,8 @@ uploadBtn?.addEventListener("click", () => {
     if (!videoEl.files || videoEl.files.length === 0) {
       throw new Error("Выберите видео файл");
     }
+    const bpmValue = normalizeAndValidateBpm(bpmEl?.value || "");
+    if (bpmEl) bpmEl.value = bpmValue;
 
     setStatus("Загружаю видео на сервер...");
     uploadProgressWrap?.classList.remove("d-none");
@@ -427,7 +570,7 @@ uploadBtn?.addEventListener("click", () => {
     fd.append("hashtags", hashtagsEl?.value || "");
     fd.append("seo_tags", seoEl?.value || "");
     fd.append("publish_dt_local", publishEl?.value || "");
-    fd.append("bpm", bpmEl.value);
+    fd.append("bpm", bpmValue);
     fd.append("key", keyEl.value);
 
     // превью
@@ -483,11 +626,14 @@ uploadBtn?.addEventListener("click", () => {
 
       // финальный статус
       setStatus("Готово ✅");
+      if (opsLogsEl) {
+        loadOpsLogs().catch(() => {});
+      }
 
-      // --- красивый вывод (как раньше) ---
+      // --- красивый вывод ---
       const publishText = data.publish_at
-      ? `${escapeHtml(String(data.publish_at))} (UTC)`
-      : "NO_DATE";
+      ? formatDate(data.publish_at)
+      : "IMMEDIATE_RELEASE (БЕЗ РАСПИСАНИЯ)";
 
         // 2. Формируем ссылку (исправил твой url_id)
         const url = data.video_url || (data.video_id ? `https://youtu.be/${data.video_id}` : "");
@@ -567,6 +713,19 @@ uploadBtn?.addEventListener("click", () => {
   }
 });
 
+refreshOpsBtn?.addEventListener("click", async () => {
+  try {
+    await loadOpsLogs();
+  } catch (e) {
+    showError("Ошибка логов: " + e.message);
+  }
+});
+
+bpmEl?.addEventListener("input", () => {
+  const digitsOnly = (bpmEl.value || "").replace(/\D+/g, "").slice(0, 3);
+  bpmEl.value = digitsOnly;
+});
+
 // маленький helper чтобы не ломать HTML (и не ловить XSS даже локально)
 function escapeHtml(s) {
   return String(s)
@@ -583,6 +742,9 @@ function escapeHtml(s) {
 
 window.addEventListener("DOMContentLoaded", () => {
   loadGallery().catch(() => {});
+  if (opsLogsEl) {
+    loadOpsLogs().catch(() => {});
+  }
 });
 
 // =========================

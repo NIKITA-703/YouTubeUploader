@@ -10,40 +10,42 @@ from dataclasses import dataclass
 
 
 KNOWN_ARTISTS = [
-    "travis scott",
-    "future",
-    "metro boomin",
-    "playboi carti",
-    "kanye west",
-    "nemzzz",
-    "cash cobain",
-    "lil baby",
-    "21 savage",
-    "obladaet",
-    "southside",
-    "gunna",
-    "yasmi",
-    "mike dean",
-    "yeat",
-    "ken carson",
-    "drake",
-    "partynextdoor",
-    "lil tecca",
-    "markul",
-    "migos",
-    "doomee",
-    "bato",
+    "Travis Scott",
+    "Future",
+    "Metro Boomin",
+    "Playboi Carti",
+    "Kanye West",
+    "Nemzzz",
+    "Cash Cobain",
+    "Lil Baby",
+    "21 Savage",
+    "Obladaet",
+    "Southside",
+    "Gunna",
+    "Yasmi",
+    "Mike Dean",
+    "Yeat",
+    "Ken Carson",
+    "Drake",
+    "Partynextdoor",
+    "Lil Tecca",
+    "Markul",
+    "Migos",
+    "Doomee",
+    "Bato",
     "Don Toliver",
-    "esdeekid"
+    "Esdeekid"
 ]
 
 PLAYLISTS = {
-    "travis scott": "PLWaG8IuGpqXhZ2xqGG6QaoIFNCkc7exOF",
-    "future": "PLWaG8IuGpqXixve4PsmoBAY8qL1CRRHp4",
-    "metro boomin": "PLWaG8IuGpqXjT5UELOmBJl1dVhWgObUWV",
-    "playboi carti": "PLWaG8IuGpqXj3p4bD7Uo_PQtSkj3iKNie",
-    "kanye west": "PLWaG8IuGpqXjTl2Il7L3HPePWf-qJy6b8",
-    "Drake": "PLWaG8IuGpqXgHUv3f09hlHuwMhtHE4LyK",
+    "Travis Scott": "PLPxCwthWFiBFT1l0AKOrfMZvPhw9neEB3",
+    "Future": "PLPxCwthWFiBGAxqkCOpgoue4gCu3Q1EWK",
+    "Metro Boomin": "PLPxCwthWFiBGL5uEhoBafdFXKYwtLgMgz",
+    "Playboi Carti": "PLPxCwthWFiBFjH324wsu-UVT5MA3pAoKT",
+    "Kanye West": "PLPxCwthWFiBF1oLj4DOD2OejNaV7cPFQ_",
+    "Drake": "PLPxCwthWFiBFWWWxIw3ochHGTY9UaTYIG",
+    "Don Toliver": "PLPxCwthWFiBFeBgbbBfX_g2f4Hew9Vdi1",
+    "Southside": "PLPxCwthWFiBFIeDgnRFjCqZleSUXj4Rm9",
 }
 
 
@@ -52,13 +54,14 @@ PLAYLISTS = {
 # =========================
 @dataclass(frozen=True)
 class AppConfig:
-    gemini_api_key: str
+    gemini_api_key: list[str]
     default_video_path: str
     default_title_template: str
 
 
 def load_config() -> AppConfig:
-    gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    raw_keys = os.getenv("GEMINI_API_KEY", "")
+    gemini_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
 
     default_video_path = os.getenv(
         "DEFAULT_VIDEO_PATH",
@@ -67,11 +70,11 @@ def load_config() -> AppConfig:
 
     default_title_template = os.getenv(
         "DEFAULT_TITLE",
-        "[FREE] АРТИСТ x АРТИСТ TYPE BEAT - НАЗВАНИЕ (prod. {display_name})"
+        "[FREE] АРТИСТ x АРТИСТ TYPE BEAT - \"НАЗВАНИЕ\" (prod. {display_name})"
     )
 
     return AppConfig(
-        gemini_api_key=gemini_api_key,
+        gemini_api_key=gemini_keys,
         default_video_path=default_video_path,
         default_title_template=default_title_template,
     )

@@ -237,3 +237,12 @@ create_users.py
 photo/*
 !photo/.gitkeep
 previews/
+
+
+db/*.db
+
+data/client_secret*.json
+data/token*.json
+tools/create_users.py
+logs/*
+!logs/.gitkeep

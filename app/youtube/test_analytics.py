@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 from googleapiclient.discovery import build
 # Импортируй свою функцию. ВАЖНО: убедись, что она возвращает (service, credentials)
 from app.youtube import authenticate_youtube
@@ -8,7 +9,7 @@ from app.youtube import authenticate_youtube
 def test_stats():
     client_secret_path = os.getenv(
         "YOUTUBE_CLIENT_SECRET",
-        r"D:\PyCharm\YouTubeUploader\client_secret.apps.googleusercontent.com.json"
+        str(Path(__file__).resolve().parents[2] / "data" / "client_secret.apps.googleusercontent.com.json"),
     )
 
     # 1. Авторизуемся.

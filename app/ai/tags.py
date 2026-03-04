@@ -77,6 +77,88 @@ def _extract_artists_from_title(title: str, entities_list: list[str]) -> list[st
     return _dedupe_preserve_order(found)
 
 
+def _find_known_artists_in_text(text: str, entities_list: list[str]) -> list[str]:
+    tl = (text or "").lower()
+    found: list[str] = []
+    for a in sorted(entities_list, key=lambda x: len(x), reverse=True):
+        al = a.lower()
+        if al and al in tl:
+            found.append(a)
+    return _dedupe_preserve_order(found)
+
+
+def _to_camel_token(s: str) -> str:
+    parts = re.findall(r"[0-9A-Za-zА-Яа-я]+", s or "")
+    return "".join(p[:1].upper() + p[1:] for p in parts if p)
+
+
+def _sanitize_ai_output_against_title(
+    hashtags: list[str],
+    seo_tags: list[str],
+    artists_in_title: list[str],
+    all_known_artists: list[str],
+    current_year: int,
+) -> tuple[list[str], list[str]]:
+    """
+    Hard guardrails:
+    - remove tags that mention known artists not present in current title
+    - ensure tags include current title artists
+    """
+    allowed_artists = {a.lower() for a in artists_in_title}
+
+    def has_foreign_artist(text: str) -> bool:
+        mentioned = _find_known_artists_in_text(text, all_known_artists)
+        for m in mentioned:
+            if m.lower() not in allowed_artists:
+                return True
+        return False
+
+    safe_hashtags = [h for h in hashtags if not has_foreign_artist(h)]
+    safe_seo = [t for t in seo_tags if not has_foreign_artist(t)]
+
+    # Ensure required base tags.
+    required_base = [
+        "type beat",
+        "typebeat",
+        "instrumental",
+        "rap instrumental",
+        f"free type beat {current_year}",
+    ]
+    for base in required_base:
+        if base.lower() not in {x.lower() for x in safe_seo}:
+            safe_seo.append(base)
+
+    # Ensure artist-specific tags come from current title artists.
+    main_artists = artists_in_title[:2]
+    for a in main_artists:
+        safe_seo.append(f"{a} type beat")
+    if len(main_artists) >= 2:
+        safe_seo.append(f"{main_artists[0]} x {main_artists[1]} type beat")
+
+    fallback_vibes = [
+        "trap type beat",
+        "dark trap beat",
+        "hard type beat",
+        "free beat",
+    ]
+    for vibe in fallback_vibes:
+        if len(safe_seo) >= MAX_SEO_TAGS:
+            break
+        safe_seo.append(vibe)
+
+    safe_seo = _dedupe_preserve_order([_clean_seo_tag(x) for x in safe_seo if _clean_seo_tag(x)])[:MAX_SEO_TAGS]
+    safe_seo = _cap_youtube_tags(safe_seo)
+
+    # Rebuild hashtags to keep relevance to current title.
+    rebuilt_hashtags: list[str] = [h for h in safe_hashtags if h]
+    for a in main_artists:
+        rebuilt_hashtags.append(f"#{_to_camel_token(a)}TypeBeat")
+    rebuilt_hashtags.append(f"#FreeTypeBeat{current_year}")
+    rebuilt_hashtags = _dedupe_preserve_order([_clean_hashtag(x) for x in rebuilt_hashtags if _clean_hashtag(x)])[:MAX_HASHTAGS]
+
+    return rebuilt_hashtags, safe_seo
+
+
 def _extract_quoted_name(title: str) -> str:
     """
     Возвращает первую фразу в кавычках из названия:
@@ -264,6 +346,9 @@ def generate_youtube_tags(
         "   - seo_tags: ровно 15 строк без #.\n"
         "   - artists: список найденных артистов.\n"
         "   - Никакого текста, пояснений или markdown.\n"
+        "10) АНТИ-КОПИПАСТ ИЗ HISTORY (СТРОГО):\n"
+        "   - Нельзя переносить артистов из хитов-референсов, если их нет в текущем title.\n"
+        "   - Если в title нет Drake, Don Toliver, Future и т.д. — эти имена запрещены в hashtags/seo_tags.\n"
     )
 
     response_schema = {
@@ -351,6 +436,14 @@ def generate_youtube_tags(
     seo_tags = [x for x in seo_tags if x]
     seo_tags = _dedupe_preserve_order(seo_tags)[:MAX_SEO_TAGS]
     seo_tags = _cap_youtube_tags(seo_tags)
+
+    hashtags, seo_tags = _sanitize_ai_output_against_title(
+        hashtags=hashtags,
+        seo_tags=seo_tags,
+        artists_in_title=artists_in_title,
+        all_known_artists=all_known_artists,
+        current_year=current_year,
+    )
 
     artists_out = [_normalize_space(x) for x in raw_artists if _normalize_space(x)]
     artists_out = _dedupe_preserve_order(artists_out)

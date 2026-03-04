@@ -56,6 +56,17 @@ WEEKDAY_DUTY = {
 KELLMI_USERNAME = "kellmi"
 
 
+def _dedupe_preserve_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for x in items:
+        if x in seen:
+            continue
+        seen.add(x)
+        out.append(x)
+    return out
+
+
 def _load_site_credentials() -> dict[str, dict[str, str]]:
     """
     ????????? ??????? ?? .env:
@@ -270,18 +281,31 @@ async def _check_and_send_for_slot(msk_now: datetime):
         print(f"--> [TELEGRAM REMINDER SKIP] Already processed slot for {username}")
         return
 
-    app_username = _get_member_app_username(member)
+    app_username = _get_member_app_username(member).strip()
     producer_username = (member.get("username") or "").strip()
-    has_new_upload_flag = has_user_upload_on_day(app_username, today)
-    has_legacy_upload_flag = has_legacy_video_upload_on_day(producer_username, today)
+    usernames_to_check = [u for u in _dedupe_preserve_order([app_username, producer_username]) if u]
+
+    has_new_upload_flag = False
+    has_legacy_upload_flag = False
+
+    for uname in usernames_to_check:
+        if has_user_upload_on_day(uname, today):
+            has_new_upload_flag = True
+            break
+
+    for uname in usernames_to_check:
+        if has_legacy_video_upload_on_day(uname, today):
+            has_legacy_upload_flag = True
+            break
 
     if has_new_upload_flag or has_legacy_upload_flag:
         if has_legacy_upload_flag and not has_new_upload_flag:
-            # Backfill marker so next checks do not depend on title parsing.
-            mark_user_upload_on_day(username=app_username, day_msk=today)
+            # Backfill marker(s) so next checks do not depend on title parsing.
+            for uname in usernames_to_check:
+                mark_user_upload_on_day(username=uname, day_msk=today)
         print(
             f"--> [TELEGRAM REMINDER SKIP] Upload exists "
-            f"app_username={app_username} legacy={has_legacy_upload_flag} day={today_iso}"
+            f"usernames={usernames_to_check} legacy={has_legacy_upload_flag} day={today_iso}"
         )
         _sent_cache.add(sent_key)
         return

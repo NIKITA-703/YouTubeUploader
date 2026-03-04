@@ -19,11 +19,18 @@ def init_db():
                 hashtags TEXT,
                 seo_tags TEXT,
                 upload_date DATETIME,
+                scheduled_publish_at DATETIME,
                 views INTEGER DEFAULT 0,
                 likes INTEGER DEFAULT 0,
                 last_updated DATETIME
             )
         ''')
+
+    # Migration for old DBs created before scheduled_publish_at existed.
+    cursor.execute("PRAGMA table_info(videos)")
+    video_cols = {row[1] for row in cursor.fetchall()}
+    if "scheduled_publish_at" not in video_cols:
+        cursor.execute("ALTER TABLE videos ADD COLUMN scheduled_publish_at DATETIME")
 
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -148,19 +155,28 @@ def get_user(username: str):
     return dict(user) if user else None
 
 
-def add_video_to_db(video_id, title, hashtags, seo_tags):
+def add_video_to_db(video_id, title, hashtags, seo_tags, scheduled_publish_at: str | None = None):
     # Используем str(DB_PATH) и добавляем timeout
     conn = sqlite3.connect(str(DB_PATH), timeout=10)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT OR IGNORE INTO videos (video_id, title, hashtags, seo_tags, upload_date, last_updated)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO videos (
+            video_id,
+            title,
+            hashtags,
+            seo_tags,
+            upload_date,
+            scheduled_publish_at,
+            last_updated
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', (
         video_id,
         title,
         ",".join(hashtags),
         ",".join(seo_tags),
         datetime.now(),
+        scheduled_publish_at,
         datetime.now(),
     ))
     conn.commit()
@@ -239,11 +255,11 @@ def has_legacy_video_upload_on_day(producer_username: str, day_msk: date) -> boo
         '''
         SELECT 1
         FROM videos
-        WHERE date(upload_date) = ?
+        WHERE (date(upload_date) = ? OR date(scheduled_publish_at) = ?)
           AND lower(title) LIKE ?
         LIMIT 1
         ''',
-        (day_msk.isoformat(), f"%prod. {producer_username.lower()}%"),
+        (day_msk.isoformat(), day_msk.isoformat(), f"%prod. {producer_username.lower()}%"),
     )
     row = cursor.fetchone()
     conn.close()

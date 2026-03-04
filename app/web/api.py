@@ -93,6 +93,17 @@ def _find_duty_member_for_app_user(app_username: str) -> tuple[int | None, dict 
     return None, None
 
 
+def _day_msk_from_publish_at_utc(publish_at_utc: str | None) -> date | None:
+    if not publish_at_utc:
+        return None
+    try:
+        dt_utc = datetime.fromisoformat(publish_at_utc.replace("Z", "+00:00"))
+    except Exception:
+        return None
+    msk_tz = timezone(timedelta(hours=3))
+    return dt_utc.astimezone(msk_tz).date()
+
+
 @router.get("/previews")
 def api_previews():
     items = []
@@ -472,7 +483,11 @@ def api_upload(
             status="success",
             details=f"video_id={result.video_id}",
         )
-        mark_user_upload_on_day(username=username, video_id=result.video_id)
+        mark_user_upload_on_day(
+            username=username,
+            video_id=result.video_id,
+            day_msk=_day_msk_from_publish_at_utc(result.publish_at),
+        )
 
         return JSONResponse({
             "ok": True,

@@ -203,7 +203,8 @@ def upload_flow_web(
         video_id=video_id,
         title=beat_name,
         hashtags=hashtags,  # список строк
-        seo_tags=seo_tags  # список строк
+        seo_tags=seo_tags,  # список строк
+        scheduled_publish_at=publish_at,
     )
 
     return UploadResult(

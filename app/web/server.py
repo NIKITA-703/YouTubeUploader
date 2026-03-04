@@ -23,17 +23,29 @@ logging.basicConfig(
 )
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = (os.getenv(name, "") or "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("--- SERVER STARTING ---")
+    tg_enabled = _env_flag("TELEGRAM_REMINDER_ENABLED", default=False)
     try:
         init_db()
         print("--- DATABASE READY ---")
-        await start_reminder_service()
+        if tg_enabled:
+            await start_reminder_service()
+        else:
+            print("--> [TELEGRAM] Reminder service disabled by TELEGRAM_REMINDER_ENABLED")
     except Exception as e:
         print(f"--- DATABASE ERROR: {e} ---")
     yield
-    await stop_reminder_service()
+    if tg_enabled:
+        await stop_reminder_service()
     print("--- SERVER SHUTTING DOWN ---")
 
 

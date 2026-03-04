@@ -497,6 +497,44 @@ function formatDate(isoString) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+let _calendarDutyStates = new Map();
+let _calendarDutyReqSeq = 0;
+
+function _dateToIsoLocal(dateObj) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const d = String(dateObj.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function _applyDutyDayClass(dayElem) {
+  dayElem.classList.remove("duty-uploaded", "duty-missed");
+  if (!dayElem?.dateObj) return;
+  const iso = _dateToIsoLocal(dayElem.dateObj);
+  const state = _calendarDutyStates.get(iso);
+  if (state === "uploaded") dayElem.classList.add("duty-uploaded");
+  if (state === "missed") dayElem.classList.add("duty-missed");
+}
+
+async function _loadDutyCalendarStatus(fpInstance) {
+  if (!fpInstance || typeof fpInstance.currentYear !== "number" || typeof fpInstance.currentMonth !== "number") return;
+  const reqId = ++_calendarDutyReqSeq;
+  const year = fpInstance.currentYear;
+  const month = fpInstance.currentMonth + 1;
+
+  try {
+    const res = await fetch(`/api/calendar_duty_status?year=${year}&month=${month}`);
+    const parsed = await safeJson(res);
+    if (!parsed.ok || !parsed.data) return;
+    if (reqId !== _calendarDutyReqSeq) return;
+
+    _calendarDutyStates = new Map(Object.entries(parsed.data.days || {}));
+    fpInstance.redraw();
+  } catch (_) {
+    // Calendar highlighting is optional; ignore network errors.
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   flatpickr("#publish_dt", {
     locale: "ru",               // Подключаем русский язык
@@ -506,6 +544,9 @@ document.addEventListener("DOMContentLoaded", () => {
     time_24hr: true,
     minuteIncrement: 5,
     minDate: "today",
+    onDayCreate: function(_, __, ___, dayElem) {
+      _applyDutyDayClass(dayElem);
+    },
 
     onReady: function(selectedDates, dateStr, instance) {
       const hourInput = instance.timeContainer.querySelector(".flatpickr-hour");
@@ -538,6 +579,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (hourInput) hourInput.addEventListener("wheel", (e) => handleWheelScroll(e, hourInput, true));
       if (minuteInput) minuteInput.addEventListener("wheel", (e) => handleWheelScroll(e, minuteInput, false));
+
+      _loadDutyCalendarStatus(instance);
+    },
+
+    onMonthChange: function(selectedDates, dateStr, instance) {
+      _loadDutyCalendarStatus(instance);
+    },
+
+    onYearChange: function(selectedDates, dateStr, instance) {
+      _loadDutyCalendarStatus(instance);
     }
   });
 });

@@ -2658,6 +2658,48 @@ span.flatpickr-weekday {
   color: #a855f7 !important;
 }
 
+/* Duty day highlighting: green=uploaded, red=missed */
+.flatpickr-day.duty-uploaded {
+  background: rgba(25, 170, 95, 0.55) !important;
+  border-color: rgba(25, 210, 115, 0.85) !important;
+  color: #eafff2 !important;
+  box-shadow: inset 0 0 0 1px rgba(25, 210, 115, 0.32), 0 0 14px rgba(25, 210, 115, 0.25);
+}
+
+.flatpickr-day.duty-missed {
+  background: rgba(220, 38, 38, 0.5) !important;
+  border-color: rgba(255, 74, 74, 0.85) !important;
+  color: #fff0f0 !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 74, 74, 0.28), 0 0 14px rgba(255, 74, 74, 0.22);
+}
+
+/* При выборе сохраняем цвет статуса дня, а не общий cyan selected */
+.flatpickr-day.duty-uploaded.selected {
+  background: rgba(25, 170, 95, 0.82) !important;
+  border-color: rgba(25, 230, 120, 1) !important;
+  color: #eafff2 !important;
+  box-shadow: 0 0 16px rgba(25, 230, 120, 0.45) !important;
+}
+
+.flatpickr-day.duty-missed.selected {
+  background: rgba(220, 38, 38, 0.82) !important;
+  border-color: rgba(255, 74, 74, 1) !important;
+  color: #fff0f0 !important;
+  box-shadow: 0 0 16px rgba(255, 74, 74, 0.4) !important;
+}
+
+.flatpickr-day.duty-uploaded:hover {
+  background: rgba(25, 170, 95, 0.72) !important;
+  border-color: rgba(25, 230, 120, 1) !important;
+  color: #eafff2 !important;
+}
+
+.flatpickr-day.duty-missed:hover {
+  background: rgba(220, 38, 38, 0.68) !important;
+  border-color: rgba(255, 74, 74, 1) !important;
+  color: #fff0f0 !important;
+}
+
 /* БЛОК ВРЕМЕНИ */
 .flatpickr-time {
   height: 60px !important;

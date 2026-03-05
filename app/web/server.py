@@ -33,7 +33,7 @@ def _env_flag(name: str, default: bool = False) -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("--- SERVER STARTING ---")
-    tg_enabled = _env_flag("TELEGRAM_REMINDER_ENABLED", default=False)
+    tg_enabled = _env_flag("TELEGRAM_REMINDER_ENABLED", default=True)
     try:
         init_db()
         print("--- DATABASE READY ---")

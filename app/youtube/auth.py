@@ -15,14 +15,25 @@ SCOPES = [
 ]
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = (os.getenv(name, "") or "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
 def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
     """
     Авторизация YouTube с поддержкой сохранения токена в файл.
     Если token.json существует, использует его. Если нет — открывает браузер.
     """
 
-    # Отключаем проверку HTTPS для локальной разработки
-    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+    # Отключаем проверку HTTPS только для локальной разработки.
+    dev_mode = _env_flag("DEVMODE", default=_env_flag("DEV_MODE", default=False))
+    if dev_mode:
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+    else:
+        os.environ.pop("OAUTHLIB_INSECURE_TRANSPORT", None)
 
     creds = None
     # Путь к файлу с токеном будет в той же папке, что и client_secret

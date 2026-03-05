@@ -33,7 +33,10 @@ def _env_flag(name: str, default: bool = False) -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("--- SERVER STARTING ---")
-    tg_enabled = _env_flag("TELEGRAM_REMINDER_ENABLED", default=False)
+    dev_mode = _env_flag("DEVMODE", default=_env_flag("DEV_MODE", default=False))
+    tg_enabled = _env_flag("TELEGRAM_REMINDER_ENABLED", default=not dev_mode)
+    print(f"--- MODE: {'DEV' if dev_mode else 'PROD'} ---")
+    print(f"--- TELEGRAM_REMINDER_ENABLED: {tg_enabled} ---")
     try:
         init_db()
         print("--- DATABASE READY ---")
@@ -81,14 +84,17 @@ class AuthGuardMiddleware(BaseHTTPMiddleware):
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     session_secret = os.getenv("SESSION_SECRET", "super-secret-key")
+    dev_mode = _env_flag("DEVMODE", default=_env_flag("DEV_MODE", default=False))
 
     app.add_middleware(AuthGuardMiddleware)
+    # In local HTTP dev, SameSite=None cookies are rejected unless Secure=True.
+    # Use Lax in dev so session cookie is accepted and login persists.
     app.add_middleware(
         SessionMiddleware,
         secret_key=session_secret,
         session_cookie="uploader_session",
         same_site="lax",
-        https_only=False,
+        https_only=not dev_mode,
     )
 
     mount_static(app)

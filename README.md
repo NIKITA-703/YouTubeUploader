@@ -59,9 +59,12 @@ pip install -r requiments.txt
 Минимально важные:
 - `GEMINI_API_KEY` — можно несколько через запятую.
 - `SESSION_SECRET`
+- `DEVMODE` — `True/False` (локальная разработка vs VPS/prod).
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID` — общий чат/тред для отчета о выложенном видео.
 - `TELEGRAM_CHAT_THREAD_ID` — id топика (если нужен).
+- `TELEGRAM_REMINDER_ENABLED` — включать ли reminder-сервис Telegram при старте FastAPI (`True/False`).
+- `TELEGRAM_SITE_CREDENTIALS_JSON` — JSON с логинами/паролями для текста напоминаний битмарям.
 - `YOUTUBE_CLIENT_SECRET` — путь к OAuth client secret json.
 - `PREVIEW_DIR`
 - `WEB_TMP_DIR`
@@ -71,9 +74,12 @@ pip install -r requiments.txt
 ```env
 GEMINI_API_KEY=key1,key2
 SESSION_SECRET=super_secret
+DEVMODE=True
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=-100xxxxxxxxxx
 TELEGRAM_CHAT_THREAD_ID=11
+TELEGRAM_REMINDER_ENABLED=False
+TELEGRAM_SITE_CREDENTIALS_JSON={"user":{"login":"...","password":"..."}}
 YOUTUBE_CLIENT_SECRET=D:\path\client_secret.json
 PREVIEW_DIR=D:\YouTubeUploader\photo
 WEB_TMP_DIR=D:\YouTubeUploader\web_tmp
@@ -97,6 +103,23 @@ STATIC_DIR=D:\YouTubeUploader\app\web\static
 ```
 
 > В обычном режиме бот и так поднимается автоматически вместе с FastAPI (`lifespan` в `app/web/server.py`).
+> Рекомендуемо:
+> - локально: `DEVMODE=True`, `TELEGRAM_REMINDER_ENABLED=False`
+> - VPS/production: `DEVMODE=False`, `TELEGRAM_REMINDER_ENABLED=True`
+
+## VPS: чувствительные и режимные значения
+Перед запуском на VPS проверь минимум:
+- `DEVMODE=False`
+- `TELEGRAM_REMINDER_ENABLED=True`
+- `SESSION_SECRET` — уникальный длинный секрет
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_SITE_CREDENTIALS_JSON`
+- `GEMINI_API_KEY`
+- `YOUTUBE_CLIENT_SECRET` (Linux path)
+- `CLEANUP_DRY_RUN=0` (для реальной очистки; `1` только для теста)
+
+Примечание:
+- `https_only` для сессионной cookie в `server.py` включается автоматически, когда `DEVMODE=False`.
+- `OAUTHLIB_INSECURE_TRANSPORT` в `app/youtube/auth.py` включается только в `DEVMODE=True`.
 
 ## Тестовый режим Telegram-бота
 Быстрый тест отправки через 10 секунд:
@@ -123,6 +146,37 @@ Remove-Item Env:TELEGRAM_TEST_MODE
 - Кнопка у битмаря: `✅ Принял, увидел`.
 - У Kellmi: `❌ прекратить напоминать` (останавливает напоминания на текущий день для выбранного битмаря, флаг хранится в БД).
 - Отчет о факте загрузки видео (`send_upload_report`) идет в общий чат/тред.
+
+Дополнительно:
+- При `/start` бот пишет в серверный лог `username`, `name`, `id` (удобно для сбора `tg_user_id`).
+- Проверка загрузки на день идет по:
+  - `user_daily_uploads` (основной источник),
+  - `videos` как fallback для legacy-записей.
+- Для scheduled-видео день фиксируется по дате публикации (МСК), а не по времени нажатия Upload в вебке.
+
+## Telegram: расписание напоминаний
+Актуальная карта хранится в `WEEKDAY_DUTY` в `app/web/telegram_bot.py`:
+- Понедельник — Kellmi
+- Вторник — whallythekidd
+- Среда — plak1!
+- Четверг — LVBUBA
+- Пятница — spacech1ld
+- Суббота — sunly
+- Воскресенье — nootropics
+
+## Telegram: проверка работы
+- Логи сервиса:
+
+```bash
+journalctl -u uploader -f -o cat
+```
+
+- Полезные маркеры в логах:
+  - `--> [TELEGRAM] Reminder service started`
+  - `--> [TELEGRAM REMINDER CHECK] ...`
+  - `--> [TELEGRAM REMINDER SENT] ...`
+  - `--> [TELEGRAM REMINDER SKIP] ...`
+  - `--> [TELEGRAM START] username=@... id=...`
 
 ## Валидации в UI/API
 - `BPM`: только цифры, диапазон `0..250`.
@@ -161,9 +215,4 @@ Remove-Item Env:TELEGRAM_TEST_MODE
 
 ## Безопасность
 В проекте есть чувствительные данные (токены, client secrets, пароли). Рекомендуется:
-- не хранить реальные креды в коде,
 - использовать `.env` и секрет-хранилище,
-- не коммитить production-токены в git.
-
-## Лицензия
-В репозитории лицензия явно не задана.

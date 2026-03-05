@@ -44,7 +44,7 @@ _manual_stop_cache: set[tuple[str, str]] = set()
 _kellmi_control_sent: set[tuple[str, str]] = set()
 
 # 0=Понедельник ... 6=Воскресенье
-WEEKDAY_DUTY = {
+DEFAULT_WEEKDAY_DUTY = {
     0: {"username": "kellmi", "app_username": "kellmipenis", "display_name": "Kellmi", "tg": "http://t.me/k3lm1", "chat_id": 6805614227, "tg_user_id": 6805614227},
     1: {"username": "whallythekidd", "display_name": "whallythekidd", "tg": "https://t.me/whallythekidd", "chat_id": 1189312079, "tg_user_id": 1189312079},
     2: {"username": "plak1!", "display_name": "plak1!", "tg": "https://t.me/plak1rplak1", "chat_id": 1201608748, "tg_user_id": 1201608748},
@@ -53,7 +53,65 @@ WEEKDAY_DUTY = {
     5: {"username": "sunly", "display_name": "sunly", "tg": "https://t.me/prodsunly", "chat_id": 8444179977, "tg_user_id": 8444179977},
     6: {"username": "nootropics", "display_name": "nootropics", "tg": "https://t.me/festry666", "chat_id": 909353633, "tg_user_id": 909353633},
 }
-KELLMI_USERNAME = "kellmi"
+
+
+def _to_int_or_none(value) -> int | None:
+    if value in (None, "", "None"):
+        return None
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
+def _normalize_member_config(raw: dict) -> dict:
+    return {
+        "username": str(raw.get("username", "")).strip(),
+        "app_username": str(raw.get("app_username") or "").strip() or None,
+        "display_name": str(raw.get("display_name") or "").strip() or None,
+        "tg": str(raw.get("tg") or "").strip() or None,
+        "chat_id": _to_int_or_none(raw.get("chat_id")),
+        "tg_user_id": _to_int_or_none(raw.get("tg_user_id")),
+    }
+
+
+def _load_weekday_duty() -> dict[int, dict]:
+    """
+    Настройка из .env:
+    TELEGRAM_WEEKDAY_DUTY_JSON='{"0": {...}, "1": {...}, ..., "6": {...}}'
+    """
+    raw = os.getenv("TELEGRAM_WEEKDAY_DUTY_JSON", "").strip()
+    if not raw:
+        return DEFAULT_WEEKDAY_DUTY
+
+    try:
+        data = json.loads(raw)
+    except Exception as e:
+        print(f"--> [TELEGRAM DUTY ERROR] invalid TELEGRAM_WEEKDAY_DUTY_JSON: {e}")
+        return DEFAULT_WEEKDAY_DUTY
+
+    if not isinstance(data, dict):
+        print("--> [TELEGRAM DUTY ERROR] TELEGRAM_WEEKDAY_DUTY_JSON is not an object")
+        return DEFAULT_WEEKDAY_DUTY
+
+    result: dict[int, dict] = {}
+    for day in range(7):
+        src = data.get(str(day), data.get(day))
+        if not isinstance(src, dict):
+            print(f"--> [TELEGRAM DUTY ERROR] Missing/invalid day={day}, fallback to default")
+            return DEFAULT_WEEKDAY_DUTY
+        member = _normalize_member_config(src)
+        if not member["username"]:
+            print(f"--> [TELEGRAM DUTY ERROR] Empty username for day={day}, fallback to default")
+            return DEFAULT_WEEKDAY_DUTY
+        result[day] = member
+
+    print("--> [TELEGRAM DUTY] Loaded from TELEGRAM_WEEKDAY_DUTY_JSON")
+    return result
+
+
+WEEKDAY_DUTY = _load_weekday_duty()
+KELLMI_USERNAME = os.getenv("TELEGRAM_KELLMI_USERNAME", "kellmi").strip() or "kellmi"
 
 
 def _dedupe_preserve_order(items: list[str]) -> list[str]:

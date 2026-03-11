@@ -17,6 +17,21 @@
 </head>
 
 <body>
+<div id="status_overlay" class="status-overlay" aria-live="polite" aria-atomic="true">
+  <div class="status-overlay__panel">
+    <div class="status-overlay__icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a10 10 0 1 0 10 10"></path>
+        <path d="m16 8-4.5 4.5-2-2"></path>
+      </svg>
+    </div>
+    <div class="status-overlay__body">
+      <div class="status-overlay__label">SYSTEM STATUS</div>
+      <div id="status_overlay_text" class="status-overlay__text">Ожидание команды</div>
+    </div>
+  </div>
+</div>
+
 <nav class="navbar navbar-expand navbar-dark bg-dark glitch-nav">
   <div class="container-fluid d-flex align-items-center">
 
@@ -291,7 +306,7 @@
 </div>
 
 
-<script src="/static/app.js?v=3"></script>
+<script src="/static/app.js?v=5"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
 </body>

@@ -14,6 +14,8 @@ const previewFilenameEl = document.getElementById("preview_filename");
 const previewFileEl = document.getElementById("preview_file");
 
 const statusEl = document.getElementById("status");
+const statusOverlayEl = document.getElementById("status_overlay");
+const statusOverlayTextEl = document.getElementById("status_overlay_text");
 const resultBox = document.getElementById("resultBox");
 
 const uploadProgressWrap = document.getElementById("uploadProgressWrap");
@@ -40,8 +42,62 @@ const lightbox = document.getElementById("glitch-lightbox");
 const lightboxImg = document.getElementById("lightbox_img");
 const lightboxCaption = document.getElementById("lightbox_caption");
 
+let statusOverlayHideTimer = null;
+let _uiBusy = false;
+
+const _backendActionButtons = [
+  fillBtn,
+  regenHashtagsBtn,
+  regenSeoBtn,
+  refreshPreviewBtn,
+  refreshGalleryBtn,
+  uploadBtn,
+].filter(Boolean);
+
+function _setBackendButtonsDisabled(disabled) {
+  for (const btn of _backendActionButtons) {
+    btn.disabled = !!disabled;
+  }
+}
+
 function setStatus(msg) {
-  if (statusEl) statusEl.textContent = msg || "";
+  const text = String(msg || "").trim();
+  if (statusEl) statusEl.textContent = text;
+  if (!statusOverlayEl || !statusOverlayTextEl) return;
+
+  if (statusOverlayHideTimer) {
+    clearTimeout(statusOverlayHideTimer);
+    statusOverlayHideTimer = null;
+  }
+
+  if (!text) {
+    _uiBusy = false;
+    _setBackendButtonsDisabled(false);
+    statusOverlayEl.classList.remove("is-visible", "is-error", "is-success", "is-busy");
+    return;
+  }
+
+  const lower = text.toLowerCase();
+  const isError = /(ошибка|error)/i.test(lower);
+  const isSuccess =
+    text.includes("✅") ||
+    /(готово|обновлен|обновлена|обновлены|выбрано|очищено|успех|success)/i.test(lower);
+  const isBusy = !isError && !isSuccess;
+  _uiBusy = isBusy;
+  _setBackendButtonsDisabled(isBusy);
+
+  statusOverlayTextEl.textContent = text;
+  statusOverlayEl.classList.add("is-visible");
+  statusOverlayEl.classList.toggle("is-error", isError);
+  statusOverlayEl.classList.toggle("is-success", isSuccess);
+  statusOverlayEl.classList.toggle("is-busy", isBusy);
+
+  if (!isBusy) {
+    statusOverlayHideTimer = setTimeout(() => {
+      statusOverlayEl.classList.remove("is-visible", "is-error", "is-success", "is-busy");
+      statusOverlayHideTimer = null;
+    }, 2200);
+  }
 }
 
 function normalizeAndValidateBpm(raw) {
@@ -352,6 +408,7 @@ async function loadOpsLogs() {
 }
 
 regenHashtagsBtn?.addEventListener("click", async () => {
+  if (_uiBusy) return;
   try {
     const title = (titleEl.value || "").trim();
     if (!title) throw new Error("Введите название видео");
@@ -408,6 +465,7 @@ mainPreviewImg.onclick = () => {
 };
 
 regenSeoBtn?.addEventListener("click", async () => {
+  if (_uiBusy) return;
   try {
     const title = (titleEl.value || "").trim();
     if (!title) throw new Error("Введите название видео");
@@ -453,6 +511,7 @@ clearBtn?.addEventListener("click", () => {
 });
 
 fillBtn?.addEventListener("click", async () => {
+  if (_uiBusy) return;
   try {
     // Очищаем прошлые результаты и сбрасываем цвет статуса
     hideResult();
@@ -529,6 +588,7 @@ fillBtn?.addEventListener("click", async () => {
 });
 
 refreshPreviewBtn?.addEventListener("click", async () => {
+  if (_uiBusy) return;
   try {
     hideResult();
 
@@ -566,6 +626,7 @@ refreshPreviewBtn?.addEventListener("click", async () => {
 });
 
 refreshGalleryBtn?.addEventListener("click", async () => {
+  if (_uiBusy) return;
   try {
     hideResult();
     setStatus("Обновляю галерею...");
@@ -705,6 +766,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 uploadBtn?.addEventListener("click", () => {
+  if (_uiBusy) return;
   try {
     hideResult();
 

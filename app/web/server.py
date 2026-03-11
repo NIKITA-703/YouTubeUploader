@@ -6,17 +6,17 @@ from contextlib import asynccontextmanager
 
 # 1. ПЕРВАЯ СТРОЧКА - ЗАГРУЗКА ENV
 from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import init_db
-from app.web.common import mount_static
+from app.web.common import mount_static, PREVIEW_DIR, WEB_TMP_DIR
 from app.web import pages, api, auth
 from app.web.telegram_bot import start_reminder_service, stop_reminder_service
 
-load_dotenv()
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -37,6 +37,8 @@ async def lifespan(app: FastAPI):
     tg_enabled = _env_flag("TELEGRAM_REMINDER_ENABLED", default=not dev_mode)
     print(f"--- MODE: {'DEV' if dev_mode else 'PROD'} ---")
     print(f"--- TELEGRAM_REMINDER_ENABLED: {tg_enabled} ---")
+    print(f"--- PREVIEW_DIR: {PREVIEW_DIR} ---")
+    print(f"--- WEB_TMP_DIR: {WEB_TMP_DIR} ---")
     try:
         init_db()
         print("--- DATABASE READY ---")

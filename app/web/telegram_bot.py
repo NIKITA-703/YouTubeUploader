@@ -25,6 +25,7 @@ MSK = timezone(timedelta(hours=3))
 
 REMINDER_WINDOW_START_HOUR = 10
 REMINDER_WINDOW_END_HOUR = 24
+REMINDER_EVERY_HOURS_BEFORE_DEADLINE = 2
 REMINDER_PREDEADLINE_SLOT = (20, 30)
 REMINDER_POSTDEADLINE_MINUTES = (0, 30)
 REMINDER_DEADLINE_HOUR = 21
@@ -209,9 +210,16 @@ def _is_reminder_slot(msk_now: datetime) -> bool:
     if msk_now.hour < REMINDER_WINDOW_START_HOUR or msk_now.hour >= REMINDER_WINDOW_END_HOUR:
         return False
 
+    # С 10:00 до дедлайна — каждые 2 часа (10:00, 12:00, 14:00, 16:00, 18:00, 20:00).
+    if msk_now.minute == 0 and msk_now.hour < REMINDER_DEADLINE_HOUR:
+        if (msk_now.hour - REMINDER_WINDOW_START_HOUR) % REMINDER_EVERY_HOURS_BEFORE_DEADLINE == 0:
+            return True
+
+    # Отдельный слот перед дедлайном.
     if (msk_now.hour, msk_now.minute) == REMINDER_PREDEADLINE_SLOT:
         return True
 
+    # После дедлайна — каждые 30 минут до полуночи (21:00..23:30).
     if msk_now.hour >= REMINDER_DEADLINE_HOUR and msk_now.minute in REMINDER_POSTDEADLINE_MINUTES:
         return True
 
@@ -383,10 +391,24 @@ async def _check_and_send_for_slot(msk_now: datetime):
 
 
 async def _reminder_loop():
+    last_day_logged: str | None = None
     while not _stop_event.is_set():
         try:
             msk_now = datetime.now(MSK)
-            _cleanup_day_caches(msk_now.date().isoformat())
+            day_iso = msk_now.date().isoformat()
+            _cleanup_day_caches(day_iso)
+
+            if day_iso != last_day_logged:
+                member = WEEKDAY_DUTY.get(msk_now.weekday())
+                if member:
+                    print(
+                        "--> [TELEGRAM REMINDER PLAN] "
+                        f"day={day_iso} duty={member.get('username')} "
+                        "slots=10:00,12:00,14:00,16:00,18:00,20:00,20:30,21:00,21:30,22:00,22:30,23:00,23:30"
+                    )
+                else:
+                    print(f"--> [TELEGRAM REMINDER PLAN] day={day_iso} no duty member for weekday={msk_now.weekday()}")
+                last_day_logged = day_iso
 
             if _is_reminder_slot(msk_now):
                 await _check_and_send_for_slot(msk_now)

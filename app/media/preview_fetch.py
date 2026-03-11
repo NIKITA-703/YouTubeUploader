@@ -2,82 +2,76 @@ from __future__ import annotations
 
 import os
 import random
-import time
 import re
+import time
+import uuid
 from pathlib import Path
-from urllib.parse import urlparse
 
 import requests
 from ddgs import DDGS
 
-# Импортируем функцию получения артистов из БД
 from app.database import get_all_entities
 
-# Список для текущей сессии (сбросится при перезагрузке сервера)
+
 USED_IMAGE_URLS: set[str] = set()
+PROJECT_BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 def _get_photo_dir() -> Path:
-    p = os.getenv("PREVIEW_DIR", str(Path.cwd() / "photo"))
-    photo_dir = Path(p)
+    # Use the same default base as app.web.common to avoid path mismatch.
+    configured = os.getenv("PREVIEW_DIR", str(PROJECT_BASE_DIR / "photo"))
+    photo_dir = Path(configured).resolve()
     photo_dir.mkdir(parents=True, exist_ok=True)
     return photo_dir
 
 
-def _maintain_photo_limit():
-    """Следит, чтобы в папке было не больше 100 превью."""
+def _maintain_photo_limit(preserve_paths: set[Path] | None = None) -> None:
     photo_dir = _get_photo_dir()
     max_files = int(os.getenv("MAX_PREVIEW_FILES", "100"))
+    preserve_resolved = {p.resolve() for p in (preserve_paths or set())}
 
-    # Получаем список всех картинок в папке
     files = [f for f in photo_dir.glob("*") if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")]
-
     if len(files) <= max_files:
         return
 
-    # Сортируем файлы по времени изменения (старые в начале)
     files.sort(key=lambda x: x.stat().st_mtime)
-
-    # Вычисляем, сколько нужно удалить
     to_delete_count = len(files) - max_files
-
     print(f"--> [CLEANUP] В папке {len(files)} фото. Удаляю {to_delete_count} старых файлов...")
 
-    for i in range(to_delete_count):
+    deleted = 0
+    for file_path in files:
+        if deleted >= to_delete_count:
+            break
+        if file_path.resolve() in preserve_resolved:
+            continue
         try:
-            files[i].unlink(missing_ok=True)
-            # print(f"    [x] Удален: {files[i].name}")
+            file_path.unlink(missing_ok=True)
+            deleted += 1
         except Exception as e:
-            print(f"    [!] Ошибка удаления {files[i].name}: {e}")
+            print(f"    [!] Ошибка удаления {file_path.name}: {e}")
 
 
 def extract_artists(title: str) -> list[str]:
-    """Извлекает артистов, используя динамический список из БД."""
-    t = title.lower()
-    # Теперь мы не зависим от config.py, а берем всё, что знает система
+    title_l = (title or "").lower()
     all_known_entities = get_all_entities()
 
     found: list[str] = []
     for artist in all_known_entities:
-        if artist.lower() in t:
+        if artist.lower() in title_l:
             found.append(artist)
 
     unique: list[str] = []
-    for a in found:
-        if a not in unique:
-            unique.append(a)
+    for artist in found:
+        if artist not in unique:
+            unique.append(artist)
     return unique
 
 
 def build_people_query(artists: list[str]) -> list[str]:
-    """Строит список поисковых запросов строго по Pinterest."""
-
     site_limit = "site:pinterest.com"
-
     if not artists:
         return ["aesthetic rapper portrait pinterest", "hip hop aesthetic photography"]
 
-    # Список "приправ" для поиска, чтобы картинки были разными по стилю
     vibes = [
         "aesthetic portrait pinterest",
         "cook up",
@@ -90,113 +84,117 @@ def build_people_query(artists: list[str]) -> list[str]:
 
     queries: list[str] = []
 
-    # 1. ПРИОРИТЕТ №1: Первый артист (он обычно самый важный в названии)
     main_artist = artists[0]
-    selected_vibes = random.sample(vibes, 3)  # Берем 3 разных стиля для главного
-    for v in selected_vibes:
-        queries.append(f"{site_limit} {main_artist} rapper {v}")
+    for vibe in random.sample(vibes, 3):
+        queries.append(f"{site_limit} {main_artist} rapper {vibe}")
 
-    # 2. ПРИОРИТЕТ №2: Второй артист (если есть)
     if len(artists) >= 2:
         second_artist = artists[1]
         queries.append(f"{site_limit} {second_artist} rapper {random.choice(vibes)}")
         queries.append(f"{site_limit} {second_artist} aesthetic")
 
-    # 3. ПРИОРИТЕТ №3: Ищем их вместе (только в самом конце как запасной вариант)
-    if len(artists) >= 2:
         joined = " ".join(artists)
         queries.append(f"{site_limit} {joined} rappers together {random.choice(vibes)}")
 
-    # ВАЖНО: Мы НЕ перемешиваем список (random.shuffle),
-    # чтобы сохранить строгий порядок приоритетов: Сначала Главный -> Потом Второй -> Потом Вместе.
     return queries
 
 
 def download_thumbnail_for_beat(beat_name: str) -> Path:
-    """Главная функция поиска и скачивания."""
     artists = extract_artists(beat_name)
     queries = build_people_query(artists)
+    last_error: Exception | None = None
 
-    last_error = None
-    # Пробуем по очереди сгенерированные запросы
-    for q in queries:
+    for query in queries:
         try:
-            print(f"[PREVIEW] Searching DuckDuckGo for: {q}")
-            return download_random_by_ddg(q)
+            print(f"[PREVIEW] Searching DuckDuckGo for: {query}")
+            return download_random_by_ddg(query)
         except Exception as e:
-            print(f"[PREVIEW] Skip query '{q}': {e}")
+            print(f"[PREVIEW] Skip query '{query}': {e}")
             last_error = e
 
     raise RuntimeError(f"Не удалось найти превью. Ошибка: {last_error}")
 
 
 def download_random_by_ddg(query: str) -> Path:
-    """Ищет картинки через DuckDuckGo и выбирает лучшую из результатов."""
     global USED_IMAGE_URLS
 
     with DDGS() as ddgs:
-        # Берем 40 результатов (чем больше пул, тем меньше повторов)
         try:
-            results = list(ddgs.images(
-                query,
-                region="wt-wt",
-                safesearch="off",
-                max_results=40
-            ))
+            results = list(
+                ddgs.images(
+                    query,
+                    region="wt-wt",
+                    safesearch="off",
+                    max_results=40,
+                )
+            )
         except Exception as e:
-            raise RuntimeError(f"DDG error: {e}")
+            raise RuntimeError(f"DDG error: {e}") from e
 
     if not results:
         raise RuntimeError(f"No results for: {query}")
 
-    # Фильтруем те, что уже видели в этой сессии
-    candidates = [r for r in results if r.get("image") not in USED_IMAGE_URLS]
-
-    # Если в этой сессии всё уже скачали, берем из общего списка
+    candidates = [row for row in results if row.get("image") not in USED_IMAGE_URLS]
     if not candidates:
         candidates = results
 
-    # Продвинутый выбор: стараемся брать картинки покрупнее (где есть инфа о размере)
-    # И выбираем рандомно из топ-10 лучших кандидатов
-    candidates.sort(key=lambda x: int(x.get('width') or 0), reverse=True)
+    candidates.sort(key=lambda row: int(row.get("width") or 0), reverse=True)
     picked = random.choice(candidates[:10])
 
     img_url = picked["image"]
     USED_IMAGE_URLS.add(img_url)
 
-    # Определяем расширение
     ext = ".jpg"
-    if ".png" in img_url.lower():
+    img_url_l = img_url.lower()
+    if ".png" in img_url_l:
         ext = ".png"
-    elif ".webp" in img_url.lower():
+    elif ".webp" in img_url_l:
         ext = ".webp"
 
-    # Имя файла
-    clean_q = re.sub(r'[^a-zA-Z0-9]', '_', query)[:25]
-    filename = f"{clean_q}_{int(time.time())}{ext}"
+    clean_q = re.sub(r"[^a-zA-Z0-9]", "_", query)[:25]
+    filename = f"{clean_q}_{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
     out_path = _get_photo_dir() / filename
 
     download_image(img_url, out_path)
-    _maintain_photo_limit()
+    if not out_path.exists() or out_path.stat().st_size <= 0:
+        raise RuntimeError(f"Downloaded preview missing or empty: {out_path.name}")
+
+    _maintain_photo_limit(preserve_paths={out_path})
+    if not out_path.exists():
+        raise RuntimeError(f"Preview was removed before response: {out_path.name}")
+
+    print(f"--> [PREVIEW SAVED] path={out_path} size={out_path.stat().st_size}")
     return out_path
 
 
-def download_image(url: str, out_path: Path):
-    """Физическое скачивание файла."""
+def download_image(url: str, out_path: Path) -> None:
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
     }
-    with requests.get(url, headers=headers, stream=True, timeout=15) as r:
-        r.raise_for_status()
-        with out_path.open("wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
+    # Do not inherit HTTP(S)_PROXY from process env for direct image download.
+    # This avoids intermittent proxy timeouts on pinimg while tags/Gemini can still use proxy.
+    no_proxy = {"http": None, "https": None}
+    with requests.get(
+        url,
+        headers=headers,
+        stream=True,
+        timeout=15,
+        proxies=no_proxy,
+    ) as response:
+        response.raise_for_status()
+        with out_path.open("wb") as out_file:
+            for chunk in response.iter_content(chunk_size=8192):
+                out_file.write(chunk)
 
 
 if __name__ == "__main__":
     test_title = "Travis Scott x Don Toliver Type Beat"
     try:
-        path = download_thumbnail_for_beat(test_title)
-        print(f"✅ Успешно скачано: {path}")
+        downloaded_path = download_thumbnail_for_beat(test_title)
+        print(f"✅ Успешно скачано: {downloaded_path}")
     except Exception as e:
         print(f"❌ Ошибка: {e}")

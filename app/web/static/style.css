@@ -92,6 +92,162 @@ body {
   background: var(--bs-body-bg);
 }
 
+.status-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.96);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
+  z-index: 1400;
+}
+
+.status-overlay.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
+
+.status-overlay__panel {
+  width: min(760px, calc(100vw - 32px));
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 26px;
+  border: 2px solid rgba(0, 242, 234, 0.95);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(2, 9, 12, 0.96), rgba(7, 7, 7, 0.96)),
+    radial-gradient(circle at top left, rgba(0, 242, 234, 0.16), transparent 42%);
+  box-shadow:
+    0 0 0 1px rgba(0, 242, 234, 0.16) inset,
+    0 0 28px rgba(0, 242, 234, 0.22),
+    0 18px 80px rgba(0, 0, 0, 0.72);
+}
+
+.status-overlay__icon {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  color: #00f2ea;
+  filter: drop-shadow(0 0 10px rgba(0, 242, 234, 0.5));
+}
+
+.status-overlay__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.status-overlay__body {
+  min-width: 0;
+}
+
+.status-overlay__label {
+  margin-bottom: 6px;
+  color: rgba(229, 229, 229, 0.78);
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.status-overlay__text {
+  color: #f3f5f7;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  font-size: clamp(1rem, 1.2vw + 0.9rem, 1.55rem);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+  word-break: break-word;
+}
+
+.status-overlay.is-busy .status-overlay__panel {
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+.status-overlay.is-busy .status-overlay__text {
+  color: #00f2ea;
+  text-shadow: 0 0 16px rgba(0, 242, 234, 0.28);
+}
+
+.status-overlay.is-success .status-overlay__panel {
+  border-color: rgba(41, 255, 131, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(41, 255, 131, 0.14) inset,
+    0 0 28px rgba(41, 255, 131, 0.2),
+    0 18px 80px rgba(0, 0, 0, 0.72);
+}
+
+.status-overlay.is-success .status-overlay__icon,
+.status-overlay.is-success .status-overlay__text {
+  color: #29ff83;
+}
+
+.status-overlay.is-error .status-overlay__panel {
+  border-color: rgba(255, 84, 84, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(255, 84, 84, 0.14) inset,
+    0 0 28px rgba(255, 84, 84, 0.2),
+    0 18px 80px rgba(0, 0, 0, 0.72);
+}
+
+.status-overlay.is-error .status-overlay__icon,
+.status-overlay.is-error .status-overlay__text {
+  color: #ff5454;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow:
+      0 0 0 1px rgba(0, 242, 234, 0.16) inset,
+      0 0 24px rgba(0, 242, 234, 0.18),
+      0 18px 80px rgba(0, 0, 0, 0.72);
+  }
+  50% {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgba(0, 242, 234, 0.18) inset,
+      0 0 32px rgba(0, 242, 234, 0.3),
+      0 18px 84px rgba(0, 0, 0, 0.72);
+  }
+}
+
+@media (max-width: 640px) {
+  .status-overlay {
+    align-items: flex-start;
+    padding-top: 88px;
+  }
+
+  .status-overlay__panel {
+    min-height: 96px;
+    gap: 14px;
+    padding: 18px 18px;
+  }
+
+  .status-overlay__icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .status-overlay__label {
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+  }
+}
+
 
 .navbar {
   border-bottom: 1px solid rgba(255,255,255,0.08);

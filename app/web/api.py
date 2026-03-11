@@ -53,6 +53,13 @@ def _ensure_admin(request: Request) -> None:
     if username not in admin_usernames:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+
+def _preview_http_payload(preview_path) -> dict:
+    if not preview_path or not preview_path.exists():
+        raise RuntimeError(f"Preview file missing before response: {preview_path}")
+    print(f"--> [PREVIEW API] file={preview_path} size={preview_path.stat().st_size}")
+    return {"preview_url": f"/previews/{preview_path.name}", "preview_filename": preview_path.name}
+
 PLAYLIST_ID_TO_NAME = {
     pid: name.title() + " Type Beat"
     for name, pid in PLAYLISTS.items()
@@ -223,7 +230,7 @@ def api_gen_preview(title: str = Form(...)):
             )
         raise
 
-    return {"preview_url": f"/previews/{preview_path.name}", "preview_filename": preview_path.name}
+    return _preview_http_payload(preview_path)
 
 
 @router.post("/fill")
@@ -294,8 +301,9 @@ def api_fill(request: Request,
     preview_filename = ""
     try:
         preview_path = download_thumbnail_for_beat(title)
-        preview_url = f"/previews/{preview_path.name}"
-        preview_filename = preview_path.name
+        preview_data = _preview_http_payload(preview_path)
+        preview_url = preview_data["preview_url"]
+        preview_filename = preview_data["preview_filename"]
     except Exception as e:
         print(f"--> [WARNING] Превью не скачано: {e}")
         preview_url = ""
@@ -323,8 +331,7 @@ def api_preview_refresh(title: str = Form(...)):
         raise HTTPException(status_code=400, detail="title пустой")
 
     preview_path = download_thumbnail_for_beat(title)
-    preview_url = f"/previews/{preview_path.name}"
-    return {"preview_url": preview_url, "preview_filename": preview_path.name}
+    return _preview_http_payload(preview_path)
 
 
 @router.post("/upload")

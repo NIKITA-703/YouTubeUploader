@@ -47,6 +47,7 @@ let _uiBusy = false;
 
 const _backendActionButtons = [
   fillBtn,
+  clearBtn,
   regenHashtagsBtn,
   regenSeoBtn,
   refreshPreviewBtn,
@@ -499,6 +500,7 @@ regenSeoBtn?.addEventListener("click", async () => {
 ========================= */
 
 clearBtn?.addEventListener("click", () => {
+  if (_uiBusy) return;
   hashtagsEl.value = "";
   seoEl.value = "";
   publishEl.value = "";

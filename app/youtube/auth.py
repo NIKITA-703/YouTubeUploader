@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from contextlib import contextmanager
 
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
@@ -22,6 +23,29 @@ def _env_flag(name: str, default: bool = False) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+@contextmanager
+def _without_http_proxies():
+    proxy_keys = [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ]
+    saved = {key: os.environ.get(key) for key in proxy_keys}
+    try:
+        for key in proxy_keys:
+            os.environ.pop(key, None)
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
     """
     Авторизация YouTube с поддержкой сохранения токена в файл.
@@ -35,9 +59,15 @@ def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
     else:
         os.environ.pop("OAUTHLIB_INSECURE_TRANSPORT", None)
 
+    client_secret = Path(client_secret_path)
+    if not client_secret.exists():
+        fallback = client_secret.parent / "json" / client_secret.name
+        if fallback.exists():
+            client_secret = fallback
+
     creds = None
     # Путь к файлу с токеном будет в той же папке, что и client_secret
-    token_path = Path(client_secret_path).parent / "token.json"
+    token_path = client_secret.parent / "token.json"
 
     # 1. Пытаемся загрузить уже существующий токен
     if token_path.exists():
@@ -49,7 +79,8 @@ def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
         if creds and creds.expired and creds.refresh_token:
             print("--> Токен истек, обновляем его автоматически...")
             try:
-                creds.refresh(Request())
+                with _without_http_proxies():
+                    creds.refresh(Request())
             except Exception as e:
                 print(f"--> Не удалось обновить токен: {e}. Требуется повторный вход.")
                 creds = None
@@ -57,13 +88,14 @@ def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
         # 3. Если автоматическое обновление не сработало — запускаем вход через браузер
         if not creds:
             print("--> Запуск ручной авторизации через браузер...")
-            flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
-                client_secret_path, scopes)
+            with _without_http_proxies():
+                flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
+                    str(client_secret), scopes)
 
-            print("AUTH FILE:", __file__)
-            print("AUTH PORT:", 8080)
+                print("AUTH FILE:", __file__)
+                print("AUTH PORT:", 8080)
 
-            creds = flow.run_local_server(port=8080)
+                creds = flow.run_local_server(port=8080)
 
         # 4. Сохраняем свежий токен в файл для будущего использования
         with open(token_path, "w") as token_file:
@@ -71,7 +103,8 @@ def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
             print(f"--> Новый токен сохранен в {token_path}")
 
     # Строим сервис YouTube v3
-    youtube = googleapiclient.discovery.build(
-        "youtube", "v3", credentials=creds)
+    with _without_http_proxies():
+        youtube = googleapiclient.discovery.build(
+            "youtube", "v3", credentials=creds)
 
     return youtube, creds

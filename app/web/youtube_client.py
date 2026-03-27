@@ -15,7 +15,7 @@ def get_youtube_client():
 
     client_secret_path = os.getenv(
         "YOUTUBE_CLIENT_SECRET",
-        str(Path(__file__).resolve().parents[2] / "data" / "client_secret.apps.googleusercontent.com.json"),
+        str(Path(__file__).resolve().parents[2] / "data" / "json" / "client_secret.apps.googleusercontent.com.json"),
     )
 
     service, credentials = authenticate_youtube(client_secret_path)

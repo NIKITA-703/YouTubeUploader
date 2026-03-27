@@ -228,11 +228,17 @@ old/
 db/*.db
 !db/.gitkeep
 
-data/client_secret*.json
+create_video/
+
+data/json/client_secret*.json
+data/json/token*.json
 !data/.gitkeep
-data/token*.json
+!data/json/.gitkeep
+data/montage/*.mp4
+data/montage/*.wav
+!data/montage/.gitkeep
+
 tools/create_users.py
-!data/.gitkeep
 
 photo/
 previews/

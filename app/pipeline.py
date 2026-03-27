@@ -114,6 +114,7 @@ def upload_flow_web(
     seo_tags_override: Optional[list[str]] = None,
     publish_at_override: Optional[str] = None,  # RFC3339 UTC
     preview_path_override: Optional[str] = None,
+    description_override: Optional[str] = None,
     category_id: str = "10",
 ) -> UploadResult:
     """
@@ -144,7 +145,7 @@ def upload_flow_web(
             seo_tags = ["Type Beat", "Trap Type Beat", "Rap Beat"]
 
     # 2) Описание
-    description = build_description(
+    description = description_override or build_description(
         tags=hashtags,
         purchase_link=purchase_link_override,
         bpm=bpm,

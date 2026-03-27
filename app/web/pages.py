@@ -22,7 +22,8 @@ def _is_admin(request: Request) -> bool:
 def index(request: Request):
     cfg = load_config()
     current_display_name = request.session.get("display_name", "")
-    final_title = cfg.default_title_template.format(display_name=current_display_name)
+    default_title = cfg.default_title_template.format(display_name=current_display_name)
+    final_title = (request.query_params.get("title") or "").strip()[:100] or default_title
     user_has_bs = request.session.get("has_beatstars", False)
 
     return templates.TemplateResponse(
@@ -32,6 +33,23 @@ def index(request: Request):
             "show_beatstars": user_has_bs,
             "default_title": final_title,
             "is_admin": _is_admin(request),
+        },
+    )
+
+
+@router.get("/create-video", response_class=HTMLResponse)
+def create_video_page(request: Request):
+    cfg = load_config()
+    current_display_name = request.session.get("display_name", "")
+    default_title = cfg.default_title_template.format(display_name=current_display_name)
+    initial_title = (request.query_params.get("title") or "").strip()[:100] or default_title
+
+    return templates.TemplateResponse(
+        "create_video.html",
+        {
+            "request": request,
+            "is_admin": _is_admin(request),
+            "initial_title": initial_title,
         },
     )
 

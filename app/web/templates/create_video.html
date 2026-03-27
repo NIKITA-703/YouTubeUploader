@@ -1,0 +1,120 @@
+﻿<!doctype html>
+<html lang="ru" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YouTubeUploader // Create Video</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="icon" href="/static/favicon.ico">
+</head>
+
+<body>
+<div id="status_overlay" class="status-overlay" aria-live="polite" aria-atomic="true">
+  <div class="status-overlay__panel">
+    <div class="status-overlay__icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a10 10 0 1 0 10 10"></path>
+        <path d="m16 8-4.5 4.5-2-2"></path>
+      </svg>
+    </div>
+    <div class="status-overlay__body">
+      <div class="status-overlay__label">SYSTEM STATUS</div>
+      <div id="status_overlay_text" class="status-overlay__text">Ожидание команды</div>
+    </div>
+  </div>
+</div>
+
+<nav class="navbar navbar-expand navbar-dark bg-dark glitch-nav">
+  <div class="container-fluid d-flex align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <span class="navbar-brand mb-0 h1 glitch-brand">
+        <span class="text-danger">YouTube</span><span class="text-warning">Uploader</span>
+      </span>
+      <span class="navbar-text text-secondary glitch-subtitle">SECURE_PANEL // CREATE VIDEO</span>
+    </div>
+
+    <div class="mx-auto d-flex align-items-center gap-2">
+      <a id="upload_link" href="/" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm glitch-tab-btn" data-text="UPLOAD">
+        <span class="btn-text">Загрузить видео</span>
+      </a>
+      <a href="/create-video" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm glitch-tab-btn glitch-tab-btn--active" data-text="CREATE VIDEO">
+        <span class="btn-text">Создать видео</span>
+      </a>
+    </div>
+
+    <form method="post" action="/logout" class="m-0">
+      <button type="submit" class="btn btn-outline-danger btn-sm glitch-btn glitch-btn--sm" data-text="LOGOUT">
+        <span class="btn-text">LOGOUT</span>
+      </button>
+    </form>
+  </div>
+</nav>
+
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-8">
+      <div class="card glitch-card-ui">
+        <div class="card-header glitch-card-header">
+          <div class="glitch-card-title">CREATE_VIDEO_FORM</div>
+          <div class="card-dots"><span></span><span></span><span></span></div>
+        </div>
+
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label glitch-label">Выбери бит <span class="text-danger">*</span></label>
+            <input id="audio_file" class="form-control glitch-input" type="file" accept=".mp3,.wav,.flac,.m4a,audio/*">
+            <div class="form-text">Бит используется для монтажа.</div>
+          </div>
+
+          <div class="mb-4 glitch-field">
+            <label class="form-label glitch-label">Название видео <span class="text-danger">*</span></label>
+            <input
+              id="montage_title"
+              class="form-control glitch-input"
+              type="text"
+              maxlength="100"
+              value="{{ initial_title }}"
+              placeholder='[FREE] Travis Scott x Drake TYPE BEAT - "ICE" (prod. kellmi)'
+            >
+            <div class="form-text">Из названия автоматически берутся название и артист.</div>
+          </div>
+
+          <div class="mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <label class="form-label glitch-label mb-0">YOUTUBE ССЫЛКИ <span class="text-danger">*</span></label>
+              <button id="add_url_btn" type="button" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="+ ДОБАВИТЬ">
+                <span class="btn-text">+ ДОБАВИТЬ</span>
+              </button>
+            </div>
+
+            <div id="montage_urls" class="d-grid gap-2">
+              <div class="montage-url-row">
+                <input class="form-control glitch-input montage-url" type="text" placeholder="https://www.youtube.com/watch?v=...">
+              </div>
+            </div>
+            <div class="form-text">Нужна минимум одна ссылка. Максимум 4 ссылки.</div>
+          </div>
+
+          <div class="d-flex align-items-center flex-wrap gap-3">
+            <button id="create_montage_btn" type="button" class="upload-btn glitch-upload-btn" data-text="СДЕЛАТЬ МЯСО">
+              <span class="btn-text">СОЗДАТЬ ВИДЕО</span>
+            </button>
+            <div id="status" class="small text-muted"></div>
+          </div>
+
+          <hr class="my-4"/>
+
+          <div class="small">
+            <div><span class="text-muted">Результат:</span></div>
+            <div id="resultBox" class="alert d-none" role="alert"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/create_video.js?v=20"></script>
+</body>
+</html>

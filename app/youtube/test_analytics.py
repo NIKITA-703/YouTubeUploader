@@ -9,7 +9,7 @@ from app.youtube import authenticate_youtube
 def test_stats():
     client_secret_path = os.getenv(
         "YOUTUBE_CLIENT_SECRET",
-        str(Path(__file__).resolve().parents[2] / "data" / "client_secret.apps.googleusercontent.com.json"),
+        str(Path(__file__).resolve().parents[2] / "data" / "json" / "client_secret.apps.googleusercontent.com.json"),
     )
 
     # 1. Авторизуемся.

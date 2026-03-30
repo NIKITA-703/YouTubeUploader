@@ -28,8 +28,8 @@ DEFAULT_SHORTS_OUTPUT_DIR = Path(
 ProgressCallback = Callable[[str, float, str], None]
 
 
-def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+def run_command(command: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
     if result.returncode != 0:
         raise RuntimeError(f"Command failed: {' '.join(command)}\n{result.stderr}")
     return result
@@ -135,6 +135,19 @@ def _resolve_yt_dlp_command() -> list[str] | None:
             return [current_python, "-m", "yt_dlp"]
 
     return None
+
+
+def _build_ytdlp_env() -> dict[str, str] | None:
+    proxy = (os.getenv("YTDLP_PROXY") or "").strip()
+    if not proxy:
+        return None
+
+    env = os.environ.copy()
+    env["HTTP_PROXY"] = proxy
+    env["HTTPS_PROXY"] = proxy
+    env["http_proxy"] = proxy
+    env["https_proxy"] = proxy
+    return env
 
 
 def probe_duration(file_path: Path) -> float:
@@ -999,6 +1012,9 @@ def download_youtube_clips(
         raise RuntimeError("yt-dlp is required for YouTube downloads. Install it into the project environment: pip install yt-dlp")
 
     downloaded_files: list[Path] = []
+    ytdlp_env = _build_ytdlp_env()
+    if ytdlp_env:
+        print("--> [YTDLP] Using YTDLP_PROXY for YouTube downloads")
 
     for index, url in enumerate(urls, start=1):
         progress_value = 20.0 * ((index - 1) / max(1, len(urls)))
@@ -1028,7 +1044,7 @@ def download_youtube_clips(
 
         command.append(url)
         print(f"Downloading source video {index}/{len(urls)}")
-        run_command(command)
+        run_command(command, env=ytdlp_env)
 
         after = [path for path in target_dir.glob("*") if path.is_file() and path not in before]
         video_files = [path for path in after if path.suffix.lower() in VIDEO_EXTENSIONS]

@@ -41,6 +41,7 @@ from app.montage.service import (
     create_shorts_batch,
     get_default_assets,
     get_montage_build_mode,
+    get_montage_quality_profile,
 )
 from app.montage.title_parser import parse_montage_title
 from app.pipeline import upload_flow_web
@@ -284,11 +285,15 @@ def _run_montage_job(
 
     try:
         build_mode = get_montage_build_mode()
+        quality_profile = get_montage_quality_profile()
         request_data = MontageRequest(
             title=clean_title,
             audio_path=audio_tmp_path,
             youtube_urls=clean_urls,
             output_path=_montage_output_dir() / "montage.mp4",
+            width=quality_profile.width,
+            height=quality_profile.height,
+            fps=quality_profile.fps,
             beats_per_cut=1,
             min_shot=0.6,
             max_shot=1.4,
@@ -463,10 +468,14 @@ def _run_post_upload_shorts_pipeline(
     project_id = (manifest.get("job_id") or Path(main_filename).stem).strip()
 
     if not shorts_payloads:
+        quality_profile = get_montage_quality_profile()
         request_data = MontageRequest(
             title=manifest.get("title") or "",
             audio_path=Path(manifest.get("audio_path") or ""),
             youtube_urls=list(manifest.get("youtube_urls") or []),
+            width=quality_profile.width,
+            height=quality_profile.height,
+            fps=quality_profile.fps,
             beats_per_cut=1,
             min_shot=0.6,
             max_shot=1.4,

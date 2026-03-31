@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -26,6 +27,94 @@ DEFAULT_SHORTS_OUTPUT_DIR = Path(
     os.getenv("MONTAGE_SHORTS_DIR", str(BASE_DIR / "web_tmp" / "shorts"))
 ).resolve()
 ProgressCallback = Callable[[str, float, str], None]
+FONT_EXTENSIONS = {".ttf", ".otf", ".ttc"}
+
+
+@dataclass(frozen=True)
+class MontageQualityProfile:
+    name: str
+    source_format: str
+    width: int
+    height: int
+    fps: int
+    shorts_width: int
+    shorts_height: int
+    segment_preset: str
+    segment_crf: str
+    intro_preset: str
+    intro_crf: str
+    final_preset: str
+    final_crf: str
+    audio_bitrate: str
+
+
+QUALITY_PROFILES: dict[str, MontageQualityProfile] = {
+    "high": MontageQualityProfile(
+        name="high",
+        source_format="bestvideo*+bestaudio/best",
+        width=1920,
+        height=1080,
+        fps=30,
+        shorts_width=1080,
+        shorts_height=1920,
+        segment_preset="medium",
+        segment_crf="18",
+        intro_preset="medium",
+        intro_crf="18",
+        final_preset="medium",
+        final_crf="18",
+        audio_bitrate="320k",
+    ),
+    "medium": MontageQualityProfile(
+        name="medium",
+        source_format="bestvideo*[height<=720]+bestaudio/best[height<=720]/best",
+        width=1280,
+        height=720,
+        fps=30,
+        shorts_width=720,
+        shorts_height=1280,
+        segment_preset="veryfast",
+        segment_crf="22",
+        intro_preset="veryfast",
+        intro_crf="22",
+        final_preset="veryfast",
+        final_crf="23",
+        audio_bitrate="192k",
+    ),
+    "low": MontageQualityProfile(
+        name="low",
+        source_format="bestvideo*[height<=480]+bestaudio/best[height<=480]/best",
+        width=854,
+        height=480,
+        fps=24,
+        shorts_width=540,
+        shorts_height=960,
+        segment_preset="superfast",
+        segment_crf="27",
+        intro_preset="superfast",
+        intro_crf="28",
+        final_preset="superfast",
+        final_crf="28",
+        audio_bitrate="128k",
+    ),
+}
+QUALITY_ALIASES = {
+    "high": "high",
+    "max": "high",
+    "full": "high",
+    "medium": "medium",
+    "normal": "medium",
+    "balanced": "medium",
+    "low": "low",
+    "lite": "low",
+    "fast": "low",
+}
+
+
+def get_montage_quality_profile() -> MontageQualityProfile:
+    raw_value = (os.getenv("MONTAGE_QUALITY") or "high").strip().lower()
+    resolved_name = QUALITY_ALIASES.get(raw_value, raw_value)
+    return QUALITY_PROFILES.get(resolved_name, QUALITY_PROFILES["high"])
 
 
 def run_command(command: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -182,6 +271,17 @@ def _normalize_key(value: str) -> str:
     return "".join(ch.lower() for ch in (value or "") if ch.isalnum())
 
 
+def _safe_unlink(file_path: Path | None, *, reason: str) -> None:
+    if file_path is None:
+        return
+    try:
+        if file_path.exists():
+            file_path.unlink()
+            print(f"--> [CLEANUP] Removed {reason}: {file_path}")
+    except Exception as error:
+        print(f"--> [CLEANUP WARNING] Could not remove {reason} {file_path}: {error}")
+
+
 def _asset_dir() -> Path:
     env_assets_dir = os.getenv("MONTAGE_ASSETS_DIR", "").strip()
     candidates: list[Path] = []
@@ -220,8 +320,8 @@ def get_shorts_output_dir(project_id: str | None = None) -> Path:
     return base
 
 
-def _find_matching_voice_tag(username: str = "", display_name: str = "") -> Path | None:
-    wav_files = sorted(_asset_dir().glob("*.wav"))
+def _find_matching_voice_tag(username: str = "", display_name: str = "", asset_dir: Path | None = None) -> Path | None:
+    wav_files = sorted((asset_dir or _asset_dir()).glob("*.wav"))
     if not wav_files:
         return None
 
@@ -247,12 +347,13 @@ def get_default_assets(username: str = "", display_name: str = "") -> MontageAss
     asset_dir = _asset_dir()
     subscribe_overlay = asset_dir / "Sub.mp4"
     frame_overlay = asset_dir / "Frame.mp4"
-    voice_tag = _find_matching_voice_tag(username=username, display_name=display_name)
+    voice_tag = _find_matching_voice_tag(username=username, display_name=display_name, asset_dir=asset_dir)
+    font_file = _find_preferred_font_file(asset_dir)
     return MontageAssets(
         subscribe_overlay=subscribe_overlay if subscribe_overlay.exists() else None,
         frame_overlay=frame_overlay if frame_overlay.exists() else None,
         voice_tag=voice_tag,
-        font_file=None,
+        font_file=font_file,
     )
 
 
@@ -284,23 +385,80 @@ def _merge_assets(
     )
 
 
-def find_font() -> str:
-    candidates = [
-        r"C:\Windows\Fonts\SitkaVF.ttf",
-        str(Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts" / "NexaTextDemo-Bold.ttf"),
-        str(Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts" / "NexaDemo-Bold.ttf"),
-        str(Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts" / "NexaTextDemo-Light.ttf"),
-        r"C:\Windows\Fonts\timesbd.ttf",
-        r"C:\Windows\Fonts\georgiab.ttf",
-        r"C:\Windows\Fonts\arialbd.ttf",
-        r"C:\Windows\Fonts\arial.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+def _iter_font_candidates(asset_dir: Path | None = None) -> list[Path]:
+    asset_dir = asset_dir or _asset_dir()
+    asset_fonts_dir = asset_dir / "fonts"
+    data_fonts_dir = DATA_MONTAGE_DIR / "fonts"
+    search_dirs: list[Path] = []
+    for candidate in (asset_fonts_dir, data_fonts_dir, asset_dir, DATA_MONTAGE_DIR):
+        if candidate.exists() and candidate not in search_dirs:
+            search_dirs.append(candidate)
+
+    resolved_candidates: list[Path] = []
+    preferred_names = (
+        "sitkavf.ttf",
+        "sitkavf.otf",
+        "sitkavf.ttc",
+        "sitkavf-italic.ttf",
+        "sitkavf italic.ttf",
+    )
+    for directory in search_dirs:
+        files = [path for path in directory.iterdir() if path.is_file() and path.suffix.lower() in FONT_EXTENSIONS]
+        lookup = {path.name.lower(): path for path in files}
+        for name in preferred_names:
+            matched = lookup.get(name)
+            if matched and matched not in resolved_candidates:
+                resolved_candidates.append(matched)
+        sitka_variants = sorted(
+            (path for path in files if path.name.lower().startswith("sitkavf") and "italic" not in path.name.lower()),
+            key=lambda path: path.name.lower(),
+        )
+        for matched in sitka_variants:
+            if matched not in resolved_candidates:
+                resolved_candidates.append(matched)
+        italic_variants = sorted(
+            (path for path in files if path.name.lower().startswith("sitkavf") and "italic" in path.name.lower()),
+            key=lambda path: path.name.lower(),
+        )
+        for matched in italic_variants:
+            if matched not in resolved_candidates:
+                resolved_candidates.append(matched)
+
+    system_candidates = [
+        Path(r"C:\Windows\Fonts\SitkaVF.ttf"),
+        Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts" / "NexaTextDemo-Bold.ttf",
+        Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts" / "NexaDemo-Bold.ttf",
+        Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts" / "NexaTextDemo-Light.ttf",
+        Path(r"C:\Windows\Fonts\timesbd.ttf"),
+        Path(r"C:\Windows\Fonts\georgiab.ttf"),
+        Path(r"C:\Windows\Fonts\arialbd.ttf"),
+        Path(r"C:\Windows\Fonts\arial.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
     ]
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate.replace("\\", "/").replace(":", r"\:")
-    raise FileNotFoundError("Could not find a usable font.")
+    for candidate in system_candidates:
+        if candidate.exists() and candidate not in resolved_candidates:
+            resolved_candidates.append(candidate)
+    return resolved_candidates
+
+
+def _find_preferred_font_file(asset_dir: Path | None = None) -> Path | None:
+    configured_font = (os.getenv("MONTAGE_FONT_FILE") or "").strip()
+    if configured_font:
+        configured_path = Path(configured_font).expanduser().resolve()
+        if configured_path.exists():
+            return configured_path
+        print(f"--> [MONTAGE FONT WARNING] MONTAGE_FONT_FILE not found: {configured_path}")
+
+    candidates = _iter_font_candidates(asset_dir)
+    return candidates[0] if candidates else None
+
+
+def find_font() -> str:
+    font_path = _find_preferred_font_file()
+    if font_path is None:
+        raise FileNotFoundError("Could not find a usable font.")
+    return str(font_path).replace("\\", "/").replace(":", r"\:")
 
 
 def build_unique_output_path(output_path: Path) -> Path:
@@ -548,6 +706,7 @@ def render_segments(
     width: int,
     height: int,
     fps: int,
+    quality_profile: MontageQualityProfile,
     rng: random.Random,
     progress_callback: ProgressCallback | None = None,
     start_progress: float = 40.0,
@@ -588,9 +747,9 @@ def render_segments(
             "-c:v",
             "libx264",
             "-preset",
-            "medium",
+            quality_profile.segment_preset,
             "-crf",
-            "18",
+            quality_profile.segment_crf,
             str(segment_path),
         ]
 
@@ -619,6 +778,7 @@ def render_intro_segment(
     intro_artist: str | None,
     intro_style: str,
     font_file: Path | None,
+    quality_profile: MontageQualityProfile,
 ) -> Path:
     fontfile = resolve_font(font_file)
     intro_path = output_dir / "segment_intro.mp4"
@@ -738,9 +898,9 @@ def render_intro_segment(
         "-c:v",
         "libx264",
         "-preset",
-        "medium",
+        quality_profile.intro_preset,
         "-crf",
-        "18",
+        quality_profile.intro_crf,
         str(intro_path),
     ]
     print(f"Rendering intro from {source_clip.name}")
@@ -761,6 +921,7 @@ def concat_segments(
     repeated_title: str | None,
     repeated_artist: str | None,
     font_file: Path | None,
+    quality_profile: MontageQualityProfile,
     progress_callback: ProgressCallback | None = None,
 ) -> None:
     with tempfile.TemporaryDirectory(prefix="concat_list_") as temp_dir:
@@ -791,7 +952,7 @@ def concat_segments(
                 "-c:a",
                 "aac",
                 "-b:a",
-                "320k",
+                quality_profile.audio_bitrate,
                 "-shortest",
                 str(output_path),
             ]
@@ -979,13 +1140,13 @@ def concat_segments(
             "-c:v",
             "libx264",
             "-preset",
-            "medium",
+            quality_profile.final_preset,
             "-crf",
-            "18",
+            quality_profile.final_crf,
             "-c:a",
             "aac",
             "-b:a",
-            "320k",
+            quality_profile.audio_bitrate,
             "-shortest",
             str(output_path),
         ]
@@ -1005,6 +1166,7 @@ def download_youtube_clips(
     cookies_from_browser: str | None,
     cookies_file: Path | None,
     js_runtime: str | None,
+    quality_profile: MontageQualityProfile,
     progress_callback: ProgressCallback | None = None,
 ) -> list[Path]:
     yt_dlp_command = _resolve_yt_dlp_command()
@@ -1028,7 +1190,7 @@ def download_youtube_clips(
             *yt_dlp_command,
             "--no-playlist",
             "-f",
-            "bv*+ba/b",
+            quality_profile.source_format,
             "--merge-output-format",
             "mp4",
             "-o",
@@ -1084,6 +1246,7 @@ def create_montage(
     subscribe_overlay_path: Path | None,
     voice_tag_path: Path | None,
     frame_overlay_path: Path | None,
+    quality_profile: MontageQualityProfile,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[int, int]:
     _report_progress(progress_callback, "Анализирую аудио", 22.0, "Считываю длительность")
@@ -1111,52 +1274,59 @@ def create_montage(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     rng = random.Random(seed)
 
-    with tempfile.TemporaryDirectory(prefix="music_montage_") as temp_dir:
-        temp_path = Path(temp_dir)
-        segments = render_segments(
-            shots=shots,
-            clips=clips,
-            output_dir=temp_path,
-            width=width,
-            height=height,
-            fps=fps,
-            rng=rng,
-            progress_callback=progress_callback,
-            start_progress=40.0,
-            end_progress=78.0,
-        )
-        if intro_duration > 0 and any([intro_tag, intro_title, intro_artist]):
-            _report_progress(progress_callback, "Добавляю интро", 80.0)
-            intro_segment = render_intro_segment(
-                source_clip=clips[0],
+    try:
+        with tempfile.TemporaryDirectory(prefix="music_montage_") as temp_dir:
+            temp_path = Path(temp_dir)
+            segments = render_segments(
+                shots=shots,
+                clips=clips,
                 output_dir=temp_path,
                 width=width,
                 height=height,
                 fps=fps,
-                intro_duration=intro_duration,
-                intro_tag=intro_tag,
-                intro_title=intro_title,
-                intro_artist=intro_artist,
-                intro_style=intro_style,
-                font_file=font_file,
+                quality_profile=quality_profile,
+                rng=rng,
+                progress_callback=progress_callback,
+                start_progress=40.0,
+                end_progress=78.0,
             )
-            segments.insert(0, intro_segment)
-            _report_progress(progress_callback, "Добавляю интро", 84.0)
-        concat_segments(
-            segments,
-            audio_path=audio_path,
-            output_path=output_path,
-            total_duration=duration,
-            intro_duration=intro_duration,
-            subscribe_overlay_path=subscribe_overlay_path,
-            voice_tag_path=voice_tag_path,
-            frame_overlay_path=frame_overlay_path,
-            repeated_tag=intro_tag,
-            repeated_title=intro_title,
-            repeated_artist=intro_artist,
-            font_file=font_file,
-            progress_callback=progress_callback,
-        )
+            if intro_duration > 0 and any([intro_tag, intro_title, intro_artist]):
+                _report_progress(progress_callback, "Добавляю интро", 80.0)
+                intro_segment = render_intro_segment(
+                    source_clip=clips[0],
+                    output_dir=temp_path,
+                    width=width,
+                    height=height,
+                    fps=fps,
+                    intro_duration=intro_duration,
+                    intro_tag=intro_tag,
+                    intro_title=intro_title,
+                    intro_artist=intro_artist,
+                    intro_style=intro_style,
+                    font_file=font_file,
+                    quality_profile=quality_profile,
+                )
+                segments.insert(0, intro_segment)
+                _report_progress(progress_callback, "Добавляю интро", 84.0)
+            concat_segments(
+                segments,
+                audio_path=audio_path,
+                output_path=output_path,
+                total_duration=duration,
+                intro_duration=intro_duration,
+                subscribe_overlay_path=subscribe_overlay_path,
+                voice_tag_path=voice_tag_path,
+                frame_overlay_path=frame_overlay_path,
+                repeated_tag=intro_tag,
+                repeated_title=intro_title,
+                repeated_artist=intro_artist,
+                font_file=font_file,
+                quality_profile=quality_profile,
+                progress_callback=progress_callback,
+            )
+    except Exception:
+        _safe_unlink(output_path, reason="failed montage output")
+        raise
     _report_progress(progress_callback, "Финализирую файл", 98.0)
     return len(shots), len(beat_times)
 
@@ -1174,6 +1344,7 @@ def create_montage_video(
     assets = _merge_assets(request.assets, username=username, display_name=display_name)
     requested_output = request.output_path or (DEFAULT_OUTPUT_DIR / "montage.mp4")
     output_path = build_unique_output_path(requested_output.resolve())
+    quality_profile = get_montage_quality_profile()
 
     validate_inputs(audio_path, local_clips, request.youtube_urls)
     validate_optional_inputs(cookies_file, request.youtube_urls, request.js_runtime)
@@ -1189,6 +1360,13 @@ def create_montage_video(
     intro_tag = (request.intro_tag or "").strip() or parsed.intro_tag
     intro_title = (request.intro_title or "").strip() or parsed.intro_title or f'"{audio_path.stem}"'
     intro_artist = (request.intro_artist or "").strip() or parsed.intro_artist
+    selected_font = resolve_font(assets.font_file)
+    print(
+        f"--> [MONTAGE QUALITY] {quality_profile.name} "
+        f"{request.width}x{request.height}@{request.fps} "
+        f"source={quality_profile.source_format}"
+    )
+    print(f"--> [MONTAGE FONT] {selected_font}")
 
     with tempfile.TemporaryDirectory(prefix="youtube_sources_") as temp_dir:
         temp_path = Path(temp_dir)
@@ -1199,6 +1377,7 @@ def create_montage_video(
                 cookies_from_browser=request.cookies_from_browser,
                 cookies_file=cookies_file,
                 js_runtime=request.js_runtime,
+                quality_profile=quality_profile,
                 progress_callback=progress_callback,
             )
             if request.youtube_urls
@@ -1230,6 +1409,7 @@ def create_montage_video(
             subscribe_overlay_path=assets.subscribe_overlay,
             voice_tag_path=assets.voice_tag,
             frame_overlay_path=assets.frame_overlay,
+            quality_profile=quality_profile,
             progress_callback=progress_callback,
         )
 
@@ -1261,6 +1441,7 @@ def create_shorts_batch(
     cookies_file = request.cookies_file.resolve() if request.cookies_file else None
     shorts_assets = get_shorts_assets(username=username, display_name=display_name)
     shorts_output_dir = get_shorts_output_dir(project_id)
+    quality_profile = get_montage_quality_profile()
 
     validate_inputs(audio_path, local_clips, request.youtube_urls)
     validate_optional_inputs(cookies_file, request.youtube_urls, request.js_runtime)
@@ -1273,6 +1454,12 @@ def create_shorts_batch(
     intro_artist = (request.intro_artist or "").strip() or parsed.intro_artist
     intro_title = (request.intro_title or "").strip() or parsed.intro_title or f'"{audio_path.stem}"'
     intro_tag = (request.intro_tag or "").strip() or parsed.intro_tag
+    selected_font = resolve_font(shorts_assets.font_file)
+    print(
+        f"--> [SHORTS QUALITY] {quality_profile.name} "
+        f"{quality_profile.shorts_width}x{quality_profile.shorts_height}@{request.fps}"
+    )
+    print(f"--> [SHORTS FONT] {selected_font}")
 
     _report_progress(progress_callback, "Готовлю shorts", 0.0)
     total_duration = probe_duration(audio_path)
@@ -1293,88 +1480,98 @@ def create_shorts_batch(
         raise RuntimeError("Не удалось подобрать окна для shorts.")
 
     results: list[MontageResult] = []
+    created_outputs: list[Path] = []
     with tempfile.TemporaryDirectory(prefix="youtube_sources_shorts_") as temp_dir:
-        temp_path = Path(temp_dir)
-        downloaded_clips = (
-            download_youtube_clips(
-                request.youtube_urls,
-                temp_path,
-                cookies_from_browser=request.cookies_from_browser,
-                cookies_file=cookies_file,
-                js_runtime=request.js_runtime,
-            )
-            if request.youtube_urls
-            else []
-        )
-        all_clips = local_clips + downloaded_clips
-        if not all_clips:
-            raise RuntimeError("Нет исходных клипов для shorts.")
-
-        for index, (start_time, end_time) in enumerate(windows, start=1):
-            start_progress = 15.0 + ((index - 1) / max(1, len(windows))) * 80.0
-            end_progress = 15.0 + (index / max(1, len(windows))) * 80.0
-            short_duration = end_time - start_time
-            _report_progress(
-                progress_callback,
-                "Собираю shorts",
-                start_progress,
-                f"Short {index}/{len(windows)}",
-            )
-
-            excerpt_path = temp_path / f"short_excerpt_{index:02d}.wav"
-            extract_audio_excerpt(audio_path, start_time, short_duration, excerpt_path)
-            short_output = shorts_output_dir / f"short_{index:02d}.mp4"
-            shots_count, source_events_count = create_montage(
-                audio_path=excerpt_path,
-                clips=all_clips,
-                output_path=short_output,
-                width=1080,
-                height=1920,
-                fps=request.fps,
-                min_shot=0.35,
-                max_shot=1.1,
-                beats_per_cut=1,
-                seed=request.seed + index,
-                intro_duration=0.0,
-                intro_tag=None,
-                intro_title=None,
-                intro_artist=None,
-                intro_style=request.intro_style,
-                font_file=shorts_assets.font_file,
-                cut_source=request.cut_source,
-                bass_max_hz=request.bass_max_hz,
-                bass_threshold_db=request.bass_threshold_db,
-                subscribe_overlay_path=None,
-                voice_tag_path=None,
-                frame_overlay_path=shorts_assets.frame_overlay,
-                progress_callback=(
-                    None
-                    if progress_callback is None
-                    else lambda phase, progress, detail="", _s=start_progress, _e=end_progress: _report_progress(
-                        progress_callback,
-                        f"Short {index}/{len(windows)}: {phase}",
-                        _s + ((_e - _s) * (progress / 100.0)),
-                        detail,
-                    )
-                ),
-            )
-            results.append(
-                MontageResult(
-                    output_path=short_output,
-                    downloaded_clips=[],
-                    shots_count=shots_count,
-                    source_events_count=source_events_count,
-                    intro_tag=intro_tag,
-                    intro_title=intro_title,
-                    intro_artist=intro_artist,
+        try:
+            temp_path = Path(temp_dir)
+            downloaded_clips = (
+                download_youtube_clips(
+                    request.youtube_urls,
+                    temp_path,
+                    cookies_from_browser=request.cookies_from_browser,
+                    cookies_file=cookies_file,
+                    js_runtime=request.js_runtime,
+                    quality_profile=quality_profile,
                 )
+                if request.youtube_urls
+                else []
             )
+            all_clips = local_clips + downloaded_clips
+            if not all_clips:
+                raise RuntimeError("Нет исходных клипов для shorts.")
+
+            for index, (start_time, end_time) in enumerate(windows, start=1):
+                start_progress = 15.0 + ((index - 1) / max(1, len(windows))) * 80.0
+                end_progress = 15.0 + (index / max(1, len(windows))) * 80.0
+                short_duration = end_time - start_time
+                _report_progress(
+                    progress_callback,
+                    "Собираю shorts",
+                    start_progress,
+                    f"Short {index}/{len(windows)}",
+                )
+
+                excerpt_path = temp_path / f"short_excerpt_{index:02d}.wav"
+                extract_audio_excerpt(audio_path, start_time, short_duration, excerpt_path)
+                short_output = shorts_output_dir / f"short_{index:02d}.mp4"
+                shots_count, source_events_count = create_montage(
+                    audio_path=excerpt_path,
+                    clips=all_clips,
+                    output_path=short_output,
+                    width=quality_profile.shorts_width,
+                    height=quality_profile.shorts_height,
+                    fps=request.fps,
+                    min_shot=0.35,
+                    max_shot=1.1,
+                    beats_per_cut=1,
+                    seed=request.seed + index,
+                    intro_duration=0.0,
+                    intro_tag=None,
+                    intro_title=None,
+                    intro_artist=None,
+                    intro_style=request.intro_style,
+                    font_file=shorts_assets.font_file,
+                    cut_source=request.cut_source,
+                    bass_max_hz=request.bass_max_hz,
+                    bass_threshold_db=request.bass_threshold_db,
+                    subscribe_overlay_path=None,
+                    voice_tag_path=None,
+                    frame_overlay_path=shorts_assets.frame_overlay,
+                    quality_profile=quality_profile,
+                    progress_callback=(
+                        None
+                        if progress_callback is None
+                        else lambda phase, progress, detail="", _s=start_progress, _e=end_progress: _report_progress(
+                            progress_callback,
+                            f"Short {index}/{len(windows)}: {phase}",
+                            _s + ((_e - _s) * (progress / 100.0)),
+                            detail,
+                        )
+                    ),
+                )
+                created_outputs.append(short_output)
+                results.append(
+                    MontageResult(
+                        output_path=short_output,
+                        downloaded_clips=[],
+                        shots_count=shots_count,
+                        source_events_count=source_events_count,
+                        intro_tag=intro_tag,
+                        intro_title=intro_title,
+                        intro_artist=intro_artist,
+                    )
+                )
+        except Exception:
+            for file_path in created_outputs:
+                _safe_unlink(file_path, reason="failed shorts output")
+            raise
 
     _report_progress(progress_callback, "Shorts готовы", 100.0)
     return results
 
 
 def parse_args() -> argparse.Namespace:
+    quality_profile = get_montage_quality_profile()
     parser = argparse.ArgumentParser(
         description="Auto-cut source videos to music beats and export a montage."
     )
@@ -1385,9 +1582,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cookies", help="Path to exported cookies.txt for yt-dlp")
     parser.add_argument("--js-runtime", help="yt-dlp JS runtime, e.g. deno, node, bun")
     parser.add_argument("--output", required=True, help="Path to output mp4")
-    parser.add_argument("--width", type=int, default=1920, help="Output width")
-    parser.add_argument("--height", type=int, default=1080, help="Output height")
-    parser.add_argument("--fps", type=int, default=30, help="Output FPS")
+    parser.add_argument("--width", type=int, default=quality_profile.width, help="Output width")
+    parser.add_argument("--height", type=int, default=quality_profile.height, help="Output height")
+    parser.add_argument("--fps", type=int, default=quality_profile.fps, help="Output FPS")
     parser.add_argument("--min-shot", type=float, default=0.8, help="Minimum shot duration in seconds")
     parser.add_argument("--max-shot", type=float, default=2.2, help="Maximum shot duration in seconds")
     parser.add_argument("--beats-per-cut", type=int, default=2, help="How many beats to group into one shot")

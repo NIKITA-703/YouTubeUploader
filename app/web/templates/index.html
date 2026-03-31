@@ -41,9 +41,11 @@
       <a href="/" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm glitch-tab-btn glitch-tab-btn--active" data-text="UPLOAD">
         <span class="btn-text">Загрузить видео</span>
       </a>
+      {% if create_video_enabled %}
       <a id="create_video_link" href="/create-video" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm glitch-tab-btn" data-text="CREATE VIDEO">
         <span class="btn-text">Создать видео</span>
       </a>
+      {% endif %}
     </div>
 
     <form method="post" action="/logout" class="m-0">

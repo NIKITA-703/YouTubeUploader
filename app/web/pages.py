@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import load_config
 from app.web.common import templates
@@ -16,6 +16,11 @@ def _is_admin(request: Request) -> bool:
     admin_usernames_raw = os.getenv("ADMIN_USERNAMES", "kellmipenis,kellmi")
     admin_usernames = {u.strip().lower() for u in admin_usernames_raw.split(",") if u.strip()}
     return username in admin_usernames
+
+
+def _is_create_video_enabled() -> bool:
+    value = (os.getenv("CREATE_VIDEO_ENABLED", "1") or "").strip().lower()
+    return value not in {"0", "false", "off", "no"}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -33,12 +38,16 @@ def index(request: Request):
             "show_beatstars": user_has_bs,
             "default_title": final_title,
             "is_admin": _is_admin(request),
+            "create_video_enabled": _is_create_video_enabled(),
         },
     )
 
 
 @router.get("/create-video", response_class=HTMLResponse)
 def create_video_page(request: Request):
+    if not _is_create_video_enabled():
+        return RedirectResponse(url="/", status_code=302)
+
     cfg = load_config()
     current_display_name = request.session.get("display_name", "")
     default_title = cfg.default_title_template.format(display_name=current_display_name)

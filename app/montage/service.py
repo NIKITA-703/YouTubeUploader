@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import random
@@ -15,11 +16,14 @@ from typing import Callable
 
 from app.montage.models import MontageAssets, MontageRequest, MontageResult
 from app.montage.title_parser import parse_montage_title
+from app.runtime_paths import is_frozen_app, resource_root, runtime_root
 
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
-BASE_DIR = Path(__file__).resolve().parents[2]
-DATA_MONTAGE_DIR = BASE_DIR / "data" / "montage"
+BASE_DIR = runtime_root()
+RESOURCE_BASE_DIR = resource_root()
+DATA_MONTAGE_DIR = RESOURCE_BASE_DIR / "data" / "montage"
+RUNTIME_DATA_MONTAGE_DIR = BASE_DIR / "data" / "montage"
 DEFAULT_OUTPUT_DIR = Path(
     os.getenv("MONTAGE_OUTPUT_DIR", str(BASE_DIR / "web_tmp" / "montage"))
 ).resolve()
@@ -128,6 +132,30 @@ def _read_timeout_seconds(env_name: str, default: float) -> float:
     return parsed if parsed > 0 else default
 
 
+def _subprocess_window_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    kwargs: dict = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    kwargs["startupinfo"] = startupinfo
+    return kwargs
+
+
+def _yt_dlp_socket_timeout_seconds() -> float:
+    return _read_timeout_seconds("YTDLP_SOCKET_TIMEOUT_SECONDS", 45.0)
+
+
+def _yt_dlp_retries() -> int:
+    raw_value = (os.getenv("YTDLP_RETRIES") or "").strip()
+    if not raw_value:
+        return 8
+    try:
+        return max(0, int(raw_value))
+    except ValueError:
+        return 8
+
+
 def run_command(
     command: list[str],
     env: dict[str, str] | None = None,
@@ -142,6 +170,7 @@ def run_command(
             text=True,
             env=env,
             timeout=timeout,
+            **_subprocess_window_kwargs(),
         )
     except subprocess.TimeoutExpired as error:
         stdout = (error.stdout or "") if isinstance(error.stdout, str) else ""
@@ -185,6 +214,58 @@ def _parse_ffmpeg_time_seconds(progress_line: str) -> float | None:
         return None
 
 
+def _tool_filename(tool_name: str) -> str:
+    if os.name == "nt" and not tool_name.lower().endswith(".exe"):
+        return f"{tool_name}.exe"
+    return tool_name
+
+
+def _resolve_tool_path(tool_name: str) -> str | None:
+    env_specific = (os.getenv(f"{tool_name.upper()}_BIN") or "").strip()
+    if env_specific:
+        candidate = Path(env_specific).expanduser().resolve()
+        if candidate.exists():
+            return str(candidate)
+
+    env_dir = (os.getenv("FFMPEG_DIR") or "").strip()
+    tool_filename = _tool_filename(tool_name)
+    search_dirs: list[Path] = []
+
+    if env_dir:
+        search_dirs.append(Path(env_dir).expanduser().resolve())
+
+    for base_dir in (runtime_root(), resource_root()):
+        for relative_dir in ("", "bin", "tools", "tools/ffmpeg", "tools/ffmpeg/bin"):
+            candidate_dir = (base_dir / relative_dir).resolve() if relative_dir else base_dir.resolve()
+            if candidate_dir not in search_dirs:
+                search_dirs.append(candidate_dir)
+
+    for directory in search_dirs:
+        candidate = directory / tool_filename
+        if candidate.exists():
+            return str(candidate)
+
+    return shutil.which(tool_name)
+
+
+def _ffmpeg_command() -> str:
+    return _resolve_tool_path("ffmpeg") or "ffmpeg"
+
+
+def _ffprobe_command() -> str:
+    return _resolve_tool_path("ffprobe") or "ffprobe"
+
+
+def _ytdlp_ffmpeg_location() -> str | None:
+    ffmpeg_path = _resolve_tool_path("ffmpeg")
+    if not ffmpeg_path:
+        return None
+    try:
+        return str(Path(ffmpeg_path).resolve().parent)
+    except Exception:
+        return str(Path(ffmpeg_path).parent)
+
+
 def run_ffmpeg_with_progress(
     command: list[str],
     *,
@@ -202,6 +283,7 @@ def run_ffmpeg_with_progress(
         text=True,
         encoding="utf-8",
         errors="replace",
+        **_subprocess_window_kwargs(),
     )
 
     output_chunks: list[str] = []
@@ -243,6 +325,9 @@ def _resolve_yt_dlp_command() -> list[str] | None:
     if yt_dlp_bin:
         return [yt_dlp_bin]
 
+    if is_frozen_app():
+        return None
+
     current_python = shutil.which("python") or sys.executable
     if current_python:
         probe = subprocess.run(
@@ -250,11 +335,78 @@ def _resolve_yt_dlp_command() -> list[str] | None:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            **_subprocess_window_kwargs(),
         )
         if probe.returncode == 0 and probe.stdout.strip() == "True":
             return [current_python, "-m", "yt_dlp"]
 
     return None
+
+
+def _has_yt_dlp_module() -> bool:
+    return importlib.util.find_spec("yt_dlp") is not None
+
+
+def _download_with_yt_dlp_api(
+    url: str,
+    *,
+    output_template: str,
+    cookies_from_browser: str | None,
+    cookies_file: Path | None,
+    js_runtime: str | None,
+    quality_profile: MontageQualityProfile,
+    proxy: str | None,
+) -> None:
+    try:
+        import yt_dlp
+        from yt_dlp.utils import DownloadError
+    except ImportError as error:
+        raise RuntimeError("yt-dlp module is not available inside the current environment.") from error
+
+    options: dict = {
+        "outtmpl": output_template,
+        "noplaylist": True,
+        "format": quality_profile.source_format,
+        "merge_output_format": "mp4",
+        "quiet": True,
+        "no_warnings": True,
+        "socket_timeout": _yt_dlp_socket_timeout_seconds(),
+        "retries": _yt_dlp_retries(),
+        "fragment_retries": _yt_dlp_retries(),
+    }
+    if js_runtime:
+        options["js_runtimes"] = {js_runtime.strip().lower(): {}}
+    if cookies_from_browser:
+        options["cookiesfrombrowser"] = (cookies_from_browser.strip().lower(), None, None, None)
+    if cookies_file:
+        options["cookiefile"] = str(cookies_file)
+    if proxy:
+        options["proxy"] = proxy
+    ffmpeg_location = _ytdlp_ffmpeg_location()
+    if ffmpeg_location:
+        options["ffmpeg_location"] = ffmpeg_location
+
+    try:
+        with yt_dlp.YoutubeDL(options) as downloader:
+            downloader.download([url])
+    except DownloadError as error:
+        message = str(error)
+        lower_message = message.lower()
+        if any(fragment in lower_message for fragment in ("timed out", "connection", "network", "proxy", "tunnel")):
+            raise RuntimeError(
+                "YouTube source download failed because of a network timeout. "
+                "This is often caused by unstable VPN/proxy/CDN routing. "
+                "Try another VPN server, disable VPN, or retry later.\n\n"
+                f"Original error: {message}"
+            ) from error
+        if "ffmpeg is not installed" in lower_message:
+            raise RuntimeError(
+                "yt-dlp could not find ffmpeg for merging audio/video streams. "
+                "The app should use the bundled ffmpeg, so this usually means the build was created before "
+                "the ffmpeg fix. Rebuild the desktop app and resend the new .exe.\n\n"
+                f"Original error: {message}"
+            ) from error
+        raise RuntimeError(f"yt-dlp failed to download the source video.\n\nOriginal error: {message}") from error
 
 
 def _build_ytdlp_env() -> dict[str, str] | None:
@@ -272,7 +424,7 @@ def _build_ytdlp_env() -> dict[str, str] | None:
 
 def probe_duration(file_path: Path) -> float:
     command = [
-        "ffprobe",
+        _ffprobe_command(),
         "-v",
         "error",
         "-show_entries",
@@ -324,7 +476,9 @@ def _asset_dir() -> Path:
     if env_assets_dir:
         candidates.append(Path(env_assets_dir).resolve())
 
-    candidates.append(DATA_MONTAGE_DIR)
+    for candidate in (RUNTIME_DATA_MONTAGE_DIR, DATA_MONTAGE_DIR):
+        if candidate not in candidates:
+            candidates.append(candidate)
 
     for candidate in candidates:
         if (candidate / "Frame.mp4").exists() or (candidate / "Sub.mp4").exists():
@@ -423,9 +577,17 @@ def _merge_assets(
 def _iter_font_candidates(asset_dir: Path | None = None) -> list[Path]:
     asset_dir = asset_dir or _asset_dir()
     asset_fonts_dir = asset_dir / "fonts"
-    data_fonts_dir = DATA_MONTAGE_DIR / "fonts"
+    resource_fonts_dir = DATA_MONTAGE_DIR / "fonts"
+    runtime_fonts_dir = RUNTIME_DATA_MONTAGE_DIR / "fonts"
     search_dirs: list[Path] = []
-    for candidate in (asset_fonts_dir, data_fonts_dir, asset_dir, DATA_MONTAGE_DIR):
+    for candidate in (
+        asset_fonts_dir,
+        runtime_fonts_dir,
+        resource_fonts_dir,
+        asset_dir,
+        RUNTIME_DATA_MONTAGE_DIR,
+        DATA_MONTAGE_DIR,
+    ):
         if candidate.exists() and candidate not in search_dirs:
             search_dirs.append(candidate)
 
@@ -593,7 +755,7 @@ def detect_bass_hits(
 def extract_audio_excerpt(audio_path: Path, start_time: float, duration: float, output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     command = [
-        "ffmpeg",
+        _ffmpeg_command(),
         "-y",
         "-ss",
         f"{max(0.0, start_time):.3f}",
@@ -768,7 +930,7 @@ def render_segments(
         )
 
         command = [
-            "ffmpeg",
+            _ffmpeg_command(),
             "-y",
             "-ss",
             f"{clip_start:.3f}",
@@ -917,7 +1079,7 @@ def render_intro_segment(
             current = next_label
 
     command = [
-        "ffmpeg",
+        _ffmpeg_command(),
         "-y",
         "-stream_loop",
         "-1",
@@ -968,7 +1130,7 @@ def concat_segments(
 
         if subscribe_overlay_path is None and voice_tag_path is None and frame_overlay_path is None:
             command = [
-                "ffmpeg",
+                _ffmpeg_command(),
                 "-y",
                 "-f",
                 "concat",
@@ -1002,7 +1164,7 @@ def concat_segments(
             return
 
         command = [
-            "ffmpeg",
+            _ffmpeg_command(),
             "-y",
             "-f",
             "concat",
@@ -1205,11 +1367,12 @@ def download_youtube_clips(
     progress_callback: ProgressCallback | None = None,
 ) -> list[Path]:
     yt_dlp_command = _resolve_yt_dlp_command()
-    if yt_dlp_command is None:
+    if yt_dlp_command is None and not _has_yt_dlp_module():
         raise RuntimeError("yt-dlp is required for YouTube downloads. Install it into the project environment: pip install yt-dlp")
 
     downloaded_files: list[Path] = []
     ytdlp_env = _build_ytdlp_env()
+    ytdlp_proxy = (os.getenv("YTDLP_PROXY") or "").strip() or None
     if ytdlp_env:
         print("--> [YTDLP] Using YTDLP_PROXY for YouTube downloads")
 
@@ -1221,27 +1384,44 @@ def download_youtube_clips(
         output_template = str(target_dir / "%(id)s.%(ext)s")
         before = set(target_dir.glob("*"))
 
-        command = [
-            *yt_dlp_command,
-            "--no-playlist",
-            "-f",
-            quality_profile.source_format,
-            "--merge-output-format",
-            "mp4",
-            "-o",
-            output_template,
-        ]
-
-        if js_runtime:
-            command += ["--js-runtimes", js_runtime]
-        if cookies_from_browser:
-            command += ["--cookies-from-browser", cookies_from_browser]
-        if cookies_file:
-            command += ["--cookies", str(cookies_file)]
-
-        command.append(url)
         print(f"Downloading source video {index}/{len(urls)}")
-        run_command(command, env=ytdlp_env)
+        if yt_dlp_command is not None:
+            command = [
+                *yt_dlp_command,
+                "--no-playlist",
+                "-f",
+                quality_profile.source_format,
+                "--merge-output-format",
+                "mp4",
+                "--socket-timeout",
+                str(_yt_dlp_socket_timeout_seconds()),
+                "--retries",
+                str(_yt_dlp_retries()),
+                "--fragment-retries",
+                str(_yt_dlp_retries()),
+                "-o",
+                output_template,
+            ]
+
+            if js_runtime:
+                command += ["--js-runtimes", js_runtime]
+            if cookies_from_browser:
+                command += ["--cookies-from-browser", cookies_from_browser]
+            if cookies_file:
+                command += ["--cookies", str(cookies_file)]
+
+            command.append(url)
+            run_command(command, env=ytdlp_env)
+        else:
+            _download_with_yt_dlp_api(
+                url,
+                output_template=output_template,
+                cookies_from_browser=cookies_from_browser,
+                cookies_file=cookies_file,
+                js_runtime=js_runtime,
+                quality_profile=quality_profile,
+                proxy=ytdlp_proxy,
+            )
 
         after = [path for path in target_dir.glob("*") if path.is_file() and path not in before]
         video_files = [path for path in after if path.suffix.lower() in VIDEO_EXTENSIONS]
@@ -1641,8 +1821,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def validate_inputs(audio_path: Path, clips: list[Path], youtube_urls: list[str]) -> None:
-    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
-        raise RuntimeError("ffmpeg and ffprobe must be available in PATH.")
+    ffmpeg_bin = _resolve_tool_path("ffmpeg")
+    ffprobe_bin = _resolve_tool_path("ffprobe")
+    if ffmpeg_bin is None or ffprobe_bin is None:
+        raise RuntimeError(
+            "ffmpeg and ffprobe were not found. Put ffmpeg.exe and ffprobe.exe next to the app "
+            "(or into a bin folder рядом с .exe), or install them into PATH."
+        )
 
     if not audio_path.exists():
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
@@ -1659,7 +1844,7 @@ def validate_optional_inputs(cookies_file: Path | None, youtube_urls: list[str],
     if cookies_file is not None and not cookies_file.exists():
         raise FileNotFoundError(f"Cookies file not found: {cookies_file}")
 
-    if youtube_urls and _resolve_yt_dlp_command() is None:
+    if youtube_urls and _resolve_yt_dlp_command() is None and not _has_yt_dlp_module():
         raise RuntimeError("yt-dlp is required for YouTube sources. Install it into the project environment: pip install yt-dlp")
 
     if js_runtime and shutil.which(js_runtime) is None:

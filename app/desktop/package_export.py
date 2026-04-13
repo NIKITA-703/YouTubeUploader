@@ -10,9 +10,10 @@ from typing import Any
 
 from app.montage.models import MontageResult
 from app.montage.service import probe_duration
+from app.runtime_paths import runtime_root
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = runtime_root()
 DEFAULT_DESKTOP_EXPORTS_DIR = BASE_DIR / "desktop_exports"
 DEFAULT_SHORTS_SCHEDULE_TIMES = ("12:00", "15:00", "18:00", "23:00")
 

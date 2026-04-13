@@ -5,8 +5,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.runtime_paths import runtime_root
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = runtime_root()
 DEFAULT_PROFILE_PATH = BASE_DIR / "data" / "json" / "desktop_app_profile.json"
 
 
@@ -70,4 +71,3 @@ def resolve_profile_identity(title: str, profile: DesktopAppProfile) -> tuple[st
         return title_username, title_username
 
     return "", ""
-

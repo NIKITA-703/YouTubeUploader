@@ -233,6 +233,7 @@ desktop_exports/
 
 data/json/client_secret*.json
 data/json/token*.json
+data/json/desktop*.json
 !data/.gitkeep
 !data/json/.gitkeep
 data/montage/*.mp4

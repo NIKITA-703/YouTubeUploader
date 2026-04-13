@@ -21,6 +21,7 @@ python-dotenv
 requests
 yt-dlp
 librosa
+customtkinter
 tzdata; platform_system=="Windows"
 
 # Telegram Bot (Manual deps for Python 3.12 compatibility)

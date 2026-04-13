@@ -1,5 +1,6 @@
 const titleEl = document.getElementById("title");
 const videoEl = document.getElementById("video_file");
+const bundleFileEl = document.getElementById("bundle_file");
 const hashtagsEl = document.getElementById("hashtags");
 const seoEl = document.getElementById("seo_tags");
 const publishEl = document.getElementById("publish_dt");
@@ -7,6 +8,7 @@ const publishEl = document.getElementById("publish_dt");
 const fillBtn = document.getElementById("fill_btn");
 const clearBtn = document.getElementById("clear_btn");
 const uploadBtn = document.getElementById("upload_btn");
+const importBundleBtn = document.getElementById("import_bundle_btn");
 const refreshPreviewBtn = document.getElementById("refresh_preview_btn");
 
 const previewImg = document.getElementById("preview_img");
@@ -63,6 +65,7 @@ const backendActionButtons = [
   refreshPreviewBtn,
   refreshGalleryBtn,
   uploadBtn,
+  importBundleBtn,
 ].filter(Boolean);
 
 function escapeHtml(value) {
@@ -95,6 +98,14 @@ function readGeneratedVideoDraft() {
   }
 }
 
+function persistGeneratedVideoSelection(video) {
+  if (!video?.filename) {
+    sessionStorage.removeItem(GENERATED_VIDEO_KEY);
+    return;
+  }
+  sessionStorage.setItem(GENERATED_VIDEO_KEY, JSON.stringify(video));
+}
+
 function clearGeneratedVideoSelection(clearSession = true) {
   if (clearSession) {
     sessionStorage.removeItem(GENERATED_VIDEO_KEY);
@@ -109,10 +120,13 @@ function applyGeneratedVideoSelection(video) {
   serverVideoFilenameEl.value = video.filename;
   if (serverVideoPanelEl) serverVideoPanelEl.classList.remove("d-none");
   if (serverVideoMetaEl) {
+    const metaText = String(video.metaText || "").trim();
     const title = String(video.title || "").trim();
-    serverVideoMetaEl.textContent = title
-      ? `Выбран готовое видео: ${title}`
-      : `Выбран готовое видео: ${video.filename}`;
+    serverVideoMetaEl.textContent = metaText || (
+      title
+        ? `Выбран готовое видео: ${title}`
+        : `Выбран готовое видео: ${video.filename}`
+    );
   }
 }
 
@@ -121,6 +135,13 @@ function loadGeneratedVideoSelection() {
   if (!video?.filename) {
     clearGeneratedVideoSelection(false);
     return;
+  }
+  if (titleEl && !String(titleEl.value || "").trim()) {
+    const savedTitle = String(video.title || "").trim();
+    if (savedTitle) {
+      titleEl.value = savedTitle;
+      syncCreateVideoHref();
+    }
   }
   applyGeneratedVideoSelection(video);
 }
@@ -536,6 +557,8 @@ clearBtn?.addEventListener("click", () => {
   if (previewFilenameEl) previewFilenameEl.value = "";
   if (previewFileEl) previewFileEl.value = "";
   if (videoEl) videoEl.value = "";
+  if (bundleFileEl) bundleFileEl.value = "";
+  clearGeneratedVideoSelection(true);
   hideResult();
   setStatus("Поля очищены ✅");
 });
@@ -763,6 +786,66 @@ function formatDate(isoString) {
     return isoString;
   }
 }
+
+importBundleBtn?.addEventListener("click", async () => {
+  if (uiBusy) return;
+  try {
+    hideResult();
+
+    const bundleFile = bundleFileEl?.files?.[0];
+    if (!bundleFile) {
+      throw new Error("Выберите ZIP-архив из приложения");
+    }
+
+    setStatus("Импортирую ZIP-архив...");
+    const fd = new FormData();
+    fd.append("bundle_file", bundleFile);
+
+    const res = await fetch("/api/bundle/import", { method: "POST", body: fd });
+    const parsed = await safeJson(res);
+    if (!parsed.ok) {
+      throw new Error(parsed.data?.detail || parsed.raw || "Не удалось импортировать архив");
+    }
+
+    const data = parsed.data || {};
+    const title = String(data.title || "").trim();
+    const serverVideoFilename = String(data.server_video_filename || "").trim();
+    if (!serverVideoFilename) {
+      throw new Error("Сервер не вернул server_video_filename");
+    }
+
+    const importedVideo = {
+      filename: serverVideoFilename,
+      title,
+      metaText: `Импортирован архив: ${title || serverVideoFilename} // shorts: ${Number(data.shorts_count || 0)}`,
+      imported_at: Date.now(),
+    };
+
+    if (videoEl) videoEl.value = "";
+    if (bundleFileEl) bundleFileEl.value = "";
+    if (titleEl && title) {
+      titleEl.value = title;
+      syncCreateVideoHref();
+    }
+
+    persistGeneratedVideoSelection(importedVideo);
+    applyGeneratedVideoSelection(importedVideo);
+
+    setStatus("ZIP-архив импортирован ✅");
+    showSuccessHtml(`
+      <div class="glitch-success-container">
+        <div class="glitch-success-header mb-3">SYSTEM // АРХИВ ИМПОРТИРОВАН</div>
+        <div class="glitch-success-item"><b>NAME:</b> <span class="text-white">${escapeHtml(String(data.project_id || "-"))}</span></div>
+        <div class="glitch-success-item"><b>VIDEO:</b> <span class="text-white">${escapeHtml(serverVideoFilename)}</span></div>
+        <div class="glitch-success-item"><b>SHORTS:</b> <span class="text-white">${escapeHtml(String(data.shorts_count || 0))}</span></div>        
+        <div class="glitch-success-item mt-3">Видео доступно для загрузки, осталось нажать "ЗАГРУЗИТЬ ВИДЕО".</div>
+      </div>
+    `);
+  } catch (e) {
+    setStatus("Ошибка");
+    showError("Ошибка: " + (e?.message || String(e)));
+  }
+});
 
 uploadBtn?.addEventListener("click", () => {
   if (uiBusy) return;

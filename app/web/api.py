@@ -9,13 +9,15 @@ import uuid
 import asyncio
 import threading
 import time
+import zipfile
 from pathlib import Path
+from pathlib import PurePosixPath
 from datetime import datetime, timezone, timedelta
 from calendar import monthrange
 
 from app.web.telegram_bot import send_upload_report, WEEKDAY_DUTY
 
-from typing import Optional
+from typing import Optional, Any
 from fastapi import BackgroundTasks
 
 from fastapi import Request
@@ -96,6 +98,12 @@ def _montage_shorts_dir(project_id: str | None = None) -> Path:
     return path
 
 
+def _bundle_imports_dir() -> Path:
+    path = WEB_TMP_DIR / "bundle_imports"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _montage_manifest_path(filename: str) -> Path:
     safe_name = Path(filename).name
     return _montage_output_dir() / f"{safe_name}.manifest.json"
@@ -115,6 +123,91 @@ def _read_montage_manifest(filename: str) -> dict | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def _sanitize_bundle_project_id(value: str) -> str:
+    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in (value or "").strip())
+    cleaned = cleaned.strip("_")
+    return cleaned[:80] or uuid.uuid4().hex[:12]
+
+
+def _allocate_bundle_project_id(project_id: str) -> str:
+    base = _sanitize_bundle_project_id(project_id)
+    candidate = base
+    counter = 1
+    shorts_root = WEB_TMP_DIR / "shorts"
+    while (shorts_root / candidate).exists():
+        candidate = f"{base}_{counter:02d}"
+        counter += 1
+    return candidate
+
+
+def _unique_file_path(directory: Path, filename: str) -> Path:
+    safe_name = Path(filename or "").name or f"{uuid.uuid4().hex}.mp4"
+    candidate = directory / safe_name
+    stem = candidate.stem
+    suffix = candidate.suffix
+    counter = 1
+    while candidate.exists():
+        candidate = directory / f"{stem}_{counter:02d}{suffix}"
+        counter += 1
+    return candidate
+
+
+def _safe_bundle_zip_path(path_value: str) -> PurePosixPath:
+    normalized = str(path_value or "").replace("\\", "/").strip()
+    path = PurePosixPath(normalized)
+    if not path.parts:
+        raise HTTPException(status_code=400, detail="Bundle path is empty")
+    if path.is_absolute() or ".." in path.parts:
+        raise HTTPException(status_code=400, detail="Bundle path is unsafe")
+    return path
+
+
+def _find_bundle_manifest_entry(archive: zipfile.ZipFile) -> str:
+    candidates = [
+        name for name in archive.namelist()
+        if not name.endswith("/") and PurePosixPath(name).name.lower() == "manifest.json"
+    ]
+    if not candidates:
+        raise HTTPException(status_code=400, detail="manifest.json not found inside the bundle")
+    return min(candidates, key=lambda name: (len(PurePosixPath(name).parts), len(name)))
+
+
+def _read_bundle_manifest(archive: zipfile.ZipFile) -> tuple[dict[str, Any], PurePosixPath]:
+    manifest_entry = _find_bundle_manifest_entry(archive)
+    try:
+        manifest_payload = json.loads(archive.read(manifest_entry).decode("utf-8"))
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=f"Could not parse bundle manifest: {error}") from error
+    if manifest_payload.get("package_type") != "youtube_uploader_desktop_bundle":
+        raise HTTPException(status_code=400, detail="Unsupported bundle package_type")
+    return manifest_payload, PurePosixPath(manifest_entry)
+
+
+def _bundle_member_name(
+    project_root: PurePosixPath,
+    relative_path: str,
+    fallback_filename: str,
+) -> str:
+    if relative_path:
+        safe_relative = _safe_bundle_zip_path(relative_path)
+        return str(project_root / safe_relative)
+    return str(project_root / Path(fallback_filename or "").name)
+
+
+def _extract_bundle_member(
+    archive: zipfile.ZipFile,
+    member_name: str,
+    target_path: Path,
+) -> None:
+    try:
+        source = archive.open(member_name)
+    except KeyError as error:
+        raise HTTPException(status_code=400, detail=f"Bundle member not found: {member_name}") from error
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with source, target_path.open("wb") as target:
+        shutil.copyfileobj(source, target)
 
 
 def _persist_shorts_preview(main_filename: str, preview_path: str | None) -> str | None:
@@ -184,11 +277,18 @@ def _build_short_description(main_title: str, display_name: str) -> str:
     return "\n".join(line for line in lines if line).strip()
 
 
-def _build_short_schedule_utc(base_publish_at_utc: str | None = None) -> list[str]:
-    schedule_raw = (os.getenv("SHORTS_SCHEDULE_TIMES") or "12:00,15:00,18:00,22:00").strip()
+def _build_short_schedule_utc(
+    base_publish_at_utc: str | None = None,
+    *,
+    schedule_times_msk: list[str] | None = None,
+    day_offset: int = 1,
+) -> list[str]:
+    schedule_values = [str(value).strip() for value in (schedule_times_msk or []) if str(value).strip()]
+    schedule_raw = ",".join(schedule_values) if schedule_values else (os.getenv("SHORTS_SCHEDULE_TIMES") or "12:00,15:00,18:00,22:00").strip()
     msk_tz = timezone(timedelta(hours=3))
     base_day_msk = _day_msk_from_publish_at_utc(base_publish_at_utc)
-    target_day = (base_day_msk + timedelta(days=1)) if base_day_msk else (datetime.now(msk_tz).date() + timedelta(days=1))
+    safe_day_offset = max(0, int(day_offset))
+    target_day = (base_day_msk + timedelta(days=safe_day_offset)) if base_day_msk else (datetime.now(msk_tz).date() + timedelta(days=safe_day_offset))
     out: list[str] = []
     for chunk in schedule_raw.split(","):
         value = chunk.strip()
@@ -533,7 +633,16 @@ def _run_post_upload_shorts_pipeline(
         display_name,
         shorts_payloads,
     )
-    schedule_slots = _build_short_schedule_utc(main_publish_at)
+    upload_policy = manifest.get("upload_policy") or {}
+    try:
+        shorts_day_offset = max(0, int(upload_policy.get("shorts_follow_main_publish_day_offset", 1)))
+    except Exception:
+        shorts_day_offset = 1
+    schedule_slots = _build_short_schedule_utc(
+        main_publish_at,
+        schedule_times_msk=list(upload_policy.get("shorts_schedule_times_msk") or []),
+        day_offset=shorts_day_offset,
+    )
     youtube = get_youtube_client()
     cfg = load_config()
 
@@ -748,6 +857,181 @@ def _day_msk_from_publish_at_utc(publish_at_utc: str | None) -> date | None:
         return None
     msk_tz = timezone(timedelta(hours=3))
     return dt_utc.astimezone(msk_tz).date()
+
+
+@router.post("/bundle/import")
+def api_bundle_import(
+    request: Request,
+    bundle_file: UploadFile = File(...),
+):
+    username = (request.session.get("username") or "unknown").strip()
+    session_display_name = (request.session.get("display_name") or "").strip()
+    upload_name = Path(bundle_file.filename or "").name
+    if not upload_name.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip bundle files are supported")
+
+    import_id = uuid.uuid4().hex
+    temp_bundle_path = _bundle_imports_dir() / f"{import_id}.zip"
+    created_paths: list[Path] = []
+    created_manifest_path: Path | None = None
+    created_shorts_dir: Path | None = None
+    import_succeeded = False
+
+    try:
+        with temp_bundle_path.open("wb") as buffer:
+            shutil.copyfileobj(bundle_file.file, buffer)
+
+        try:
+            archive = zipfile.ZipFile(temp_bundle_path)
+        except zipfile.BadZipFile as error:
+            raise HTTPException(status_code=400, detail=f"Invalid zip archive: {error}") from error
+
+        with archive:
+            bundle_manifest, manifest_entry_path = _read_bundle_manifest(archive)
+            project_root = manifest_entry_path.parent
+
+            bundle_title = str(bundle_manifest.get("title") or "").strip()[:100]
+            bundle_project_id = str(bundle_manifest.get("project_id") or "").strip()
+            imported_project_id = _allocate_bundle_project_id(bundle_project_id or import_id[:12])
+
+            main_video = bundle_manifest.get("main_video") or {}
+            main_filename = Path(str(main_video.get("filename") or "")).name
+            if not main_filename:
+                raise HTTPException(status_code=400, detail="Bundle manifest does not contain main_video.filename")
+
+            main_member_name = _bundle_member_name(
+                project_root,
+                str(main_video.get("relative_path") or ""),
+                main_filename,
+            )
+            target_main_path = _unique_file_path(_montage_output_dir(), main_filename)
+            _extract_bundle_member(archive, main_member_name, target_main_path)
+            created_paths.append(target_main_path)
+
+            shorts_dir = _montage_shorts_dir(imported_project_id)
+            created_shorts_dir = shorts_dir
+            imported_shorts: list[dict[str, Any]] = []
+            for index, short_payload in enumerate(bundle_manifest.get("shorts") or [], start=1):
+                short_filename = Path(str(short_payload.get("filename") or "")).name
+                if not short_filename:
+                    continue
+                short_member_name = _bundle_member_name(
+                    project_root,
+                    str(short_payload.get("relative_path") or ""),
+                    short_filename,
+                )
+                target_short_path = _unique_file_path(shorts_dir, short_filename)
+                _extract_bundle_member(archive, short_member_name, target_short_path)
+                created_paths.append(target_short_path)
+                imported_shorts.append(
+                    {
+                        "index": index,
+                        "filename": target_short_path.name,
+                        "download_url": f"/api/montage/shorts/{imported_project_id}/{target_short_path.name}",
+                        "shots_count": int(short_payload.get("shots_count") or 0),
+                        "source_events_count": int(short_payload.get("source_events_count") or 0),
+                    }
+                )
+
+            upload_policy_raw = bundle_manifest.get("upload_policy") or {}
+            schedule_times = [
+                str(value).strip()
+                for value in (upload_policy_raw.get("shorts_schedule_times_msk") or [])
+                if str(value).strip()
+            ]
+            try:
+                shorts_day_offset = max(0, int(upload_policy_raw.get("shorts_follow_main_publish_day_offset", 1)))
+            except Exception:
+                shorts_day_offset = 1
+
+            _write_montage_manifest(
+                target_main_path.name,
+                {
+                    "job_id": imported_project_id,
+                    "username": username,
+                    "display_name": str(bundle_manifest.get("display_name") or session_display_name or username).strip(),
+                    "title": bundle_title or target_main_path.stem,
+                    "audio_path": "",
+                    "youtube_urls": list(bundle_manifest.get("source_urls") or []),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "mode": "bundle_import",
+                    "shorts": imported_shorts,
+                    "preview_path": None,
+                    "main_publish_at": None,
+                    "upload_policy": {
+                        "main_video_kind": str(upload_policy_raw.get("main_video_kind") or "main"),
+                        "shorts_follow_main_publish_day_offset": shorts_day_offset,
+                        "shorts_schedule_times_msk": schedule_times,
+                    },
+                    "bundle_project_id": bundle_project_id,
+                    "bundle_filename": upload_name,
+                },
+            )
+            created_manifest_path = _montage_manifest_path(target_main_path.name)
+
+        add_operation_log(
+            event="bundle_imported",
+            username=username,
+            status="success",
+            details=json.dumps(
+                {
+                    "bundle_filename": upload_name,
+                    "project_id": imported_project_id,
+                    "main_filename": target_main_path.name,
+                    "shorts_count": len(imported_shorts),
+                },
+                ensure_ascii=False,
+            ),
+        )
+        import_succeeded = True
+        return {
+            "ok": True,
+            "server_video_filename": target_main_path.name,
+            "title": bundle_title or target_main_path.stem,
+            "project_id": imported_project_id,
+            "shorts_count": len(imported_shorts),
+            "message": "Bundle imported successfully",
+        }
+    except HTTPException:
+        raise
+    except Exception as error:
+        add_operation_log(
+            event="bundle_imported",
+            level="ERROR",
+            username=username,
+            status="failed",
+            details=json.dumps(
+                {"bundle_filename": upload_name, "error": str(error)},
+                ensure_ascii=False,
+            ),
+        )
+        raise HTTPException(status_code=500, detail=f"Bundle import failed: {error}") from error
+    finally:
+        bundle_file.file.close()
+        try:
+            if temp_bundle_path.exists():
+                temp_bundle_path.unlink()
+        except Exception:
+            pass
+        if not import_succeeded:
+            if created_manifest_path is not None:
+                try:
+                    if created_manifest_path.exists():
+                        created_manifest_path.unlink()
+                except Exception:
+                    pass
+            for path in reversed(created_paths):
+                try:
+                    if path.exists():
+                        path.unlink()
+                except Exception:
+                    pass
+            if created_shorts_dir is not None:
+                try:
+                    if created_shorts_dir.exists() and not any(created_shorts_dir.iterdir()):
+                        created_shorts_dir.rmdir()
+                except Exception:
+                    pass
 
 
 @router.get("/previews")
@@ -1148,6 +1432,13 @@ def api_upload(
 
         shorts_manifest = _read_montage_manifest(safe_server_video_name) if safe_server_video_name else None
         if shorts_manifest is not None:
+            shorts_manifest["title"] = title
+            shorts_manifest["username"] = username
+            shorts_manifest["display_name"] = (
+                user_session_data.get("display_name")
+                or shorts_manifest.get("display_name")
+                or username
+            )
             shorts_manifest["main_publish_at"] = result.publish_at
             shorts_manifest["preview_path"] = _persist_shorts_preview(
                 safe_server_video_name,

@@ -63,6 +63,10 @@ def _safe_probe_duration(file_path: Path) -> float | None:
         return None
 
 
+def _bundle_relative_path(file_path: Path, bundle_paths: DesktopBundlePaths) -> str:
+    return file_path.relative_to(bundle_paths.project_dir).as_posix()
+
+
 def write_bundle_manifest(
     bundle_paths: DesktopBundlePaths,
     *,
@@ -91,7 +95,7 @@ def write_bundle_manifest(
         "quality": quality,
         "main_video": {
             "filename": main_result.output_path.name,
-            "relative_path": str(main_result.output_path.relative_to(bundle_paths.project_dir)),
+            "relative_path": _bundle_relative_path(main_result.output_path, bundle_paths),
             "duration_seconds": _safe_probe_duration(main_result.output_path),
             "shots_count": main_result.shots_count,
             "source_events_count": main_result.source_events_count,
@@ -103,7 +107,7 @@ def write_bundle_manifest(
             {
                 "index": index,
                 "filename": result.output_path.name,
-                "relative_path": str(result.output_path.relative_to(bundle_paths.project_dir)),
+                "relative_path": _bundle_relative_path(result.output_path, bundle_paths),
                 "duration_seconds": _safe_probe_duration(result.output_path),
                 "shots_count": result.shots_count,
                 "source_events_count": result.source_events_count,
@@ -133,5 +137,5 @@ def create_bundle_archive(bundle_paths: DesktopBundlePaths) -> Path:
     with zipfile.ZipFile(bundle_paths.archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for file_path in sorted(bundle_paths.project_dir.rglob("*")):
             if file_path.is_file():
-                archive.write(file_path, file_path.relative_to(bundle_paths.project_dir.parent))
+                archive.write(file_path, file_path.relative_to(bundle_paths.project_dir.parent).as_posix())
     return bundle_paths.archive_path

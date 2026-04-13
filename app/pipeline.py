@@ -114,6 +114,7 @@ def upload_flow_web(
     seo_tags_override: Optional[list[str]] = None,
     publish_at_override: Optional[str] = None,  # RFC3339 UTC
     preview_path_override: Optional[str] = None,
+    preview_selected_by_user: bool = False,
     description_override: Optional[str] = None,
     category_id: str = "10",
 ) -> UploadResult:
@@ -180,17 +181,23 @@ def upload_flow_web(
     try:
         if preview_path_override:
             preview_path = preview_path_override
+            print(f"--> [UPLOAD PREVIEW] source=user-selected path={preview_path}")
         else:
+            print(f"--> [UPLOAD PREVIEW] source=auto-search beat={beat_name}")
             p = download_thumbnail_for_beat(beat_name)
             preview_path = str(p)
 
+        if not preview_path:
+            raise RuntimeError("Preview path is empty before thumbnails.set")
         set_preview(youtube, video_id, preview_path)
     except Exception as e:
 
         warnings.append(f"thumbnail failed: {e}")
         print("THUMBNAIL ERROR:", repr(e))
-
-        print("Preview step failed, skipping preview:", e)
+        if preview_selected_by_user:
+            print("Preview step failed for user-selected preview:", e)
+        else:
+            print("Preview step failed, skipping preview:", e)
 
     # 6) Playlists
     try: # удалить

@@ -117,6 +117,28 @@ def _read_montage_manifest(filename: str) -> dict | None:
         return None
 
 
+def _persist_shorts_preview(main_filename: str, preview_path: str | None) -> str | None:
+    if not preview_path:
+        return None
+    source = Path(preview_path)
+    if not source.exists():
+        return None
+    try:
+        source_resolved = source.resolve()
+        if source_resolved.is_relative_to(PREVIEW_DIR.resolve()):
+            return str(source_resolved)
+    except Exception:
+        pass
+
+    target_dir = _montage_uploads_dir()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    safe_main = Path(main_filename).stem
+    suffix = source.suffix or ".jpg"
+    target = target_dir / f"{safe_main}_shorts_preview{suffix}"
+    shutil.copy2(source, target)
+    return str(target.resolve())
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -162,10 +184,11 @@ def _build_short_description(main_title: str, display_name: str) -> str:
     return "\n".join(line for line in lines if line).strip()
 
 
-def _build_tomorrow_short_schedule_utc() -> list[str]:
+def _build_short_schedule_utc(base_publish_at_utc: str | None = None) -> list[str]:
     schedule_raw = (os.getenv("SHORTS_SCHEDULE_TIMES") or "12:00,15:00,18:00,22:00").strip()
     msk_tz = timezone(timedelta(hours=3))
-    tomorrow = datetime.now(msk_tz).date() + timedelta(days=1)
+    base_day_msk = _day_msk_from_publish_at_utc(base_publish_at_utc)
+    target_day = (base_day_msk + timedelta(days=1)) if base_day_msk else (datetime.now(msk_tz).date() + timedelta(days=1))
     out: list[str] = []
     for chunk in schedule_raw.split(","):
         value = chunk.strip()
@@ -174,9 +197,9 @@ def _build_tomorrow_short_schedule_utc() -> list[str]:
         try:
             hours, minutes = value.split(":", 1)
             dt_msk = datetime(
-                tomorrow.year,
-                tomorrow.month,
-                tomorrow.day,
+                target_day.year,
+                target_day.month,
+                target_day.day,
                 int(hours),
                 int(minutes),
                 tzinfo=msk_tz,
@@ -185,7 +208,7 @@ def _build_tomorrow_short_schedule_utc() -> list[str]:
         except Exception:
             continue
     return out or [
-        datetime(tomorrow.year, tomorrow.month, tomorrow.day, hour, 0, tzinfo=msk_tz)
+        datetime(target_day.year, target_day.month, target_day.day, hour, 0, tzinfo=msk_tz)
         .astimezone(timezone.utc)
         .isoformat()
         .replace("+00:00", "Z")
@@ -285,15 +308,11 @@ def _run_montage_job(
 
     try:
         build_mode = get_montage_build_mode()
-        quality_profile = get_montage_quality_profile()
         request_data = MontageRequest(
             title=clean_title,
             audio_path=audio_tmp_path,
             youtube_urls=clean_urls,
             output_path=_montage_output_dir() / "montage.mp4",
-            width=quality_profile.width,
-            height=quality_profile.height,
-            fps=quality_profile.fps,
             beats_per_cut=1,
             min_shot=0.6,
             max_shot=1.4,
@@ -367,6 +386,8 @@ def _run_montage_job(
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "mode": build_mode,
                     "shorts": result_payload["shorts"],
+                    "preview_path": None,
+                    "main_publish_at": None,
                 },
             )
 
@@ -466,16 +487,14 @@ def _run_post_upload_shorts_pipeline(
     display_name = (manifest.get("display_name") or user_session_data.get("display_name") or username).strip()
     shorts_payloads = manifest.get("shorts") or []
     project_id = (manifest.get("job_id") or Path(main_filename).stem).strip()
+    preview_path_for_shorts = (manifest.get("preview_path") or "").strip() or None
+    main_publish_at = (manifest.get("main_publish_at") or "").strip() or None
 
     if not shorts_payloads:
-        quality_profile = get_montage_quality_profile()
         request_data = MontageRequest(
             title=manifest.get("title") or "",
             audio_path=Path(manifest.get("audio_path") or ""),
             youtube_urls=list(manifest.get("youtube_urls") or []),
-            width=quality_profile.width,
-            height=quality_profile.height,
-            fps=quality_profile.fps,
             beats_per_cut=1,
             min_shot=0.6,
             max_shot=1.4,
@@ -514,7 +533,7 @@ def _run_post_upload_shorts_pipeline(
         display_name,
         shorts_payloads,
     )
-    schedule_slots = _build_tomorrow_short_schedule_utc()
+    schedule_slots = _build_short_schedule_utc(main_publish_at)
     youtube = get_youtube_client()
     cfg = load_config()
 
@@ -536,7 +555,7 @@ def _run_post_upload_shorts_pipeline(
             hashtags_override=short_payload["hashtags"],
             seo_tags_override=short_payload["seo_tags"],
             publish_at_override=scheduled_publish_at,
-            preview_path_override=None,
+            preview_path_override=preview_path_for_shorts,
             category_id="10",
             description_override=short_payload["description"],
         )
@@ -563,6 +582,15 @@ def _run_post_upload_shorts_pipeline(
     try:
         if audio_path.exists():
             audio_path.unlink()
+    except Exception:
+        pass
+
+    preview_path = Path(manifest.get("preview_path") or "")
+    try:
+        if preview_path.exists():
+            preview_path_resolved = preview_path.resolve()
+            if preview_path_resolved.is_relative_to(_montage_uploads_dir().resolve()):
+                preview_path.unlink()
     except Exception:
         pass
 
@@ -1030,15 +1058,29 @@ def api_upload(
         seo_list = normalize_seo_tags(seo_tags)
 
         preview_path_override: Optional[str] = None
+        preview_selected_by_user = False
         if preview_file is not None and preview_file.filename:
             preview_temp_path = WEB_TMP_DIR / f"{upload_id}_{preview_file.filename}"
             with preview_temp_path.open("wb") as f:
                 shutil.copyfileobj(preview_file.file, f)
             preview_path_override = str(preview_temp_path)
+            preview_selected_by_user = True
+            print(
+                f"--> [UPLOAD PREVIEW] uploaded file selected "
+                f"name={preview_file.filename!r} path={preview_path_override}"
+            )
         elif preview_filename.strip():
             p = PREVIEW_DIR / preview_filename.strip()
-            if p.exists():
-                preview_path_override = str(p)
+            if not p.exists():
+                raise HTTPException(status_code=400, detail="Selected preview file not found on server")
+            preview_path_override = str(p)
+            preview_selected_by_user = True
+            print(
+                f"--> [UPLOAD PREVIEW] gallery file selected "
+                f"name={preview_filename.strip()!r} path={preview_path_override}"
+            )
+        else:
+            print("--> [UPLOAD PREVIEW] no user-selected preview, auto-search will be used")
 
         user_session_data = {
             "username": request.session.get("username"),
@@ -1069,6 +1111,7 @@ def api_upload(
             seo_tags_override=seo_list,
             publish_at_override=publish_at,
             preview_path_override=preview_path_override,
+            preview_selected_by_user=preview_selected_by_user,
             category_id="10",
         )
 
@@ -1104,6 +1147,13 @@ def api_upload(
                 )
 
         shorts_manifest = _read_montage_manifest(safe_server_video_name) if safe_server_video_name else None
+        if shorts_manifest is not None:
+            shorts_manifest["main_publish_at"] = result.publish_at
+            shorts_manifest["preview_path"] = _persist_shorts_preview(
+                safe_server_video_name,
+                result.preview_path,
+            )
+            _write_montage_manifest(safe_server_video_name, shorts_manifest)
         if (
             safe_server_video_name
             and background_tasks

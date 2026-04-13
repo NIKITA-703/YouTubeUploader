@@ -117,8 +117,39 @@ def get_montage_quality_profile() -> MontageQualityProfile:
     return QUALITY_PROFILES.get(resolved_name, QUALITY_PROFILES["high"])
 
 
-def run_command(command: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+def _read_timeout_seconds(env_name: str, default: float) -> float:
+    raw_value = (os.getenv(env_name) or "").strip()
+    if not raw_value:
+        return default
+    try:
+        parsed = float(raw_value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def run_command(
+    command: list[str],
+    env: dict[str, str] | None = None,
+    *,
+    timeout: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        stdout = (error.stdout or "") if isinstance(error.stdout, str) else ""
+        stderr = (error.stderr or "") if isinstance(error.stderr, str) else ""
+        raise RuntimeError(
+            f"Command timed out after {timeout:.0f}s: {' '.join(command)}\n"
+            f"{stderr or stdout}"
+        ) from error
     if result.returncode != 0:
         raise RuntimeError(f"Command failed: {' '.join(command)}\n{result.stderr}")
     return result
@@ -280,6 +311,10 @@ def _safe_unlink(file_path: Path | None, *, reason: str) -> None:
             print(f"--> [CLEANUP] Removed {reason}: {file_path}")
     except Exception as error:
         print(f"--> [CLEANUP WARNING] Could not remove {reason} {file_path}: {error}")
+
+
+def _segment_render_timeout_seconds() -> float:
+    return _read_timeout_seconds("MONTAGE_SEGMENT_TIMEOUT_SECONDS", 120.0)
 
 
 def _asset_dir() -> Path:
@@ -757,7 +792,7 @@ def render_segments(
             f"Rendering shot {index + 1}/{len(shots)} "
             f"({shot_duration:.2f}s) from {source_clip.name} at {clip_start:.2f}s"
         )
-        run_command(command)
+        run_command(command, timeout=_segment_render_timeout_seconds())
         rendered_segments.append(segment_path)
         previous_clip = source_clip
         progress_value = start_progress + (end_progress - start_progress) * ((index + 1) / max(1, len(shots)))
@@ -924,7 +959,7 @@ def concat_segments(
     quality_profile: MontageQualityProfile,
     progress_callback: ProgressCallback | None = None,
 ) -> None:
-    with tempfile.TemporaryDirectory(prefix="concat_list_") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="concat_list_", ignore_cleanup_errors=True) as temp_dir:
         list_path = Path(temp_dir) / "segments.txt"
         list_path.write_text(
             "\n".join(f"file '{segment.as_posix()}'" for segment in segments),
@@ -1275,7 +1310,7 @@ def create_montage(
     rng = random.Random(seed)
 
     try:
-        with tempfile.TemporaryDirectory(prefix="music_montage_") as temp_dir:
+        with tempfile.TemporaryDirectory(prefix="music_montage_", ignore_cleanup_errors=True) as temp_dir:
             temp_path = Path(temp_dir)
             segments = render_segments(
                 shots=shots,
@@ -1368,7 +1403,7 @@ def create_montage_video(
     )
     print(f"--> [MONTAGE FONT] {selected_font}")
 
-    with tempfile.TemporaryDirectory(prefix="youtube_sources_") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="youtube_sources_", ignore_cleanup_errors=True) as temp_dir:
         temp_path = Path(temp_dir)
         downloaded_clips = (
             download_youtube_clips(
@@ -1481,7 +1516,7 @@ def create_shorts_batch(
 
     results: list[MontageResult] = []
     created_outputs: list[Path] = []
-    with tempfile.TemporaryDirectory(prefix="youtube_sources_shorts_") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="youtube_sources_shorts_", ignore_cleanup_errors=True) as temp_dir:
         try:
             temp_path = Path(temp_dir)
             downloaded_clips = (
@@ -1666,7 +1701,7 @@ def main() -> None:
     validate_voice_tag_input(voice_tag_path)
     validate_frame_overlay_input(frame_overlay_path)
 
-    with tempfile.TemporaryDirectory(prefix="youtube_sources_") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="youtube_sources_", ignore_cleanup_errors=True) as temp_dir:
         temp_path = Path(temp_dir)
         downloaded_clips = (
             download_youtube_clips(

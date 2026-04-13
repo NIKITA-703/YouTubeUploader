@@ -115,6 +115,36 @@ sudo apt install -y nodejs npm
 Открой:
 - `http://127.0.0.1:8000/login`
 
+## Desktop-приложение для локальной сборки
+Для тяжёлого монтажа теперь есть отдельное desktop-приложение на `Tkinter`.
+
+Запуск:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.desktop.tk_montage_app
+```
+
+Что делает desktop app:
+- принимает title, бит и до 10 YouTube source links,
+- локально собирает `main video`,
+- затем локально собирает `shorts`,
+- сохраняет готовые файлы в отдельную папку проекта,
+- пишет `manifest.json`,
+- при включённой опции дополнительно собирает `.zip` bundle для последующей загрузки на хост.
+
+Структура output-пакета:
+- `desktop_exports/<project_id>/manifest.json`
+- `desktop_exports/<project_id>/<main_video>.mp4`
+- `desktop_exports/<project_id>/shorts/short_01.mp4`
+- `desktop_exports/<project_id>/shorts/short_02.mp4`
+- `desktop_exports/<project_id>.zip`
+
+Идея bundle:
+- тяжёлый download/render выполняется локально,
+- на хост потом уходит уже готовый пакет,
+- хосту не нужно заново резать source clips,
+- `manifest.json` явно описывает, где main video, где shorts и как их потом планировать.
+
 ## Запуск только Telegram-бота
 
 ```powershell
@@ -254,6 +284,11 @@ SHORTS_AFTER_MAIN_UPLOAD_ENABLED=1
 Рекомендуемо:
 - локально на сильной машине: `high`
 - VPS с ограниченными ресурсами: `medium` или `low`
+
+Для desktop app обычно имеет смысл:
+- `MONTAGE_QUALITY=high`
+- собирать main + shorts локально,
+- а на VPS оставлять только upload/schedule часть.
 
 ## Пример `.env` для локальной разработки
 

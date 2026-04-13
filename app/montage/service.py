@@ -345,8 +345,8 @@ def get_montage_build_mode() -> str:
     return value
 
 
-def get_shorts_output_dir(project_id: str | None = None) -> Path:
-    base = DEFAULT_SHORTS_OUTPUT_DIR
+def get_shorts_output_dir(project_id: str | None = None, base_dir: Path | None = None) -> Path:
+    base = (base_dir or DEFAULT_SHORTS_OUTPUT_DIR).resolve()
     base.mkdir(parents=True, exist_ok=True)
     if project_id:
         target = base / project_id
@@ -1466,6 +1466,7 @@ def create_shorts_batch(
     username: str = "",
     display_name: str = "",
     project_id: str | None = None,
+    output_dir: Path | None = None,
     max_shorts: int = 4,
     min_duration: float = 15.0,
     max_duration: float = 45.0,
@@ -1475,7 +1476,7 @@ def create_shorts_batch(
     local_clips = [clip.resolve() for clip in request.local_clips]
     cookies_file = request.cookies_file.resolve() if request.cookies_file else None
     shorts_assets = get_shorts_assets(username=username, display_name=display_name)
-    shorts_output_dir = get_shorts_output_dir(project_id)
+    shorts_output_dir = get_shorts_output_dir(project_id, base_dir=output_dir)
     quality_profile = get_montage_quality_profile()
 
     validate_inputs(audio_path, local_clips, request.youtube_urls)

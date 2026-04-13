@@ -229,6 +229,7 @@ db/*.db
 !db/.gitkeep
 
 create_video/
+desktop_exports/
 
 data/json/client_secret*.json
 data/json/token*.json

@@ -3,14 +3,15 @@ from __future__ import annotations
 from app.config import PLAYLISTS
 
 
-def detect_playlists(title: str) -> list[str]:
+def detect_playlists(title: str, playlist_map: dict[str, str] | None = None) -> list[str]:
     """
     По названию видео определяет, в какие плейлисты добавлять.
     """
     title_lower = title.lower()
     result = []
+    mapping = PLAYLISTS if playlist_map is None else playlist_map
 
-    for artist, playlist_id in PLAYLISTS.items():
+    for artist, playlist_id in mapping.items():
         if artist.lower() in title_lower:
             result.append(playlist_id)
             print(f"--> [PLAYLIST] Найдено совпадение для: {artist}")
@@ -37,12 +38,17 @@ def add_video_to_playlist(youtube, video_id: str, playlist_id: str):
     request.execute()
 
 
-def add_video_to_detected_playlists(youtube, video_id: str, beat_name: str) -> list[str]:
+def add_video_to_detected_playlists(
+    youtube,
+    video_id: str,
+    beat_name: str,
+    playlist_map: dict[str, str] | None = None,
+) -> list[str]:
     """
     Удобная обёртка: сама находит плейлисты по beat_name и добавляет video_id.
     Возвращает список playlistId, куда добавили.
     """
-    playlist_ids = detect_playlists(beat_name)
+    playlist_ids = detect_playlists(beat_name, playlist_map=playlist_map)
 
     if playlist_ids:
         for pid in playlist_ids:

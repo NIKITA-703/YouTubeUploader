@@ -7,6 +7,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import load_config
 from app.web.common import templates
+from app.youtube.channels import (
+    get_default_youtube_channel_id,
+    get_public_youtube_channels,
+    get_youtube_channel,
+)
 
 router = APIRouter()
 
@@ -30,6 +35,11 @@ def index(request: Request):
     default_title = cfg.default_title_template.format(display_name=current_display_name)
     final_title = (request.query_params.get("title") or "").strip()[:100] or default_title
     user_has_bs = request.session.get("has_beatstars", False)
+    requested_channel_id = (request.query_params.get("channel_id") or "").strip()
+    try:
+        selected_channel_id = get_youtube_channel(requested_channel_id or None).channel_id
+    except Exception:
+        selected_channel_id = get_default_youtube_channel_id()
 
     return templates.TemplateResponse(
         "index.html",
@@ -39,6 +49,8 @@ def index(request: Request):
             "default_title": final_title,
             "is_admin": _is_admin(request),
             "create_video_enabled": _is_create_video_enabled(),
+            "youtube_channels": get_public_youtube_channels(),
+            "selected_youtube_channel_id": selected_channel_id,
         },
     )
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Any, Dict
 
 from google.api_core.gapic_v1.routing_header import to_routing_header
@@ -24,6 +24,7 @@ class UploadResult:
     playlist_ids: list[str]
     hashtags: list[str]
     seo_tags: list[str]
+    warnings: list[str] = field(default_factory=list)
 
 
 def upload_flow(youtube, media_file: str, beat_name: str, gemini_api_key: str, category_id: str = "10") -> UploadResult:
@@ -98,6 +99,7 @@ def upload_flow(youtube, media_file: str, beat_name: str, gemini_api_key: str, c
         playlist_ids=playlist_ids,
         hashtags=hashtags,
         seo_tags=seo_tags,
+        warnings=[],
     )
 
 
@@ -116,6 +118,7 @@ def upload_flow_web(
     preview_path_override: Optional[str] = None,
     preview_selected_by_user: bool = False,
     description_override: Optional[str] = None,
+    playlist_map: Optional[dict[str, str]] = None,
     category_id: str = "10",
 ) -> UploadResult:
     """
@@ -125,7 +128,7 @@ def upload_flow_web(
     - можно передать preview_path_override (файл), иначе будет скачано автоматически
     """
 
-    warnings: list[str] = []  # удалить
+    warnings: list[str] = []
 
     beat_name = (beat_name or "").strip()[:100]
     if not beat_name:
@@ -192,7 +195,7 @@ def upload_flow_web(
         set_preview(youtube, video_id, preview_path)
     except Exception as e:
 
-        warnings.append(f"thumbnail failed: {e}")
+        warnings.append(str(e))
         print("THUMBNAIL ERROR:", repr(e))
         if preview_selected_by_user:
             print("Preview step failed for user-selected preview:", e)
@@ -201,9 +204,14 @@ def upload_flow_web(
 
     # 6) Playlists
     try: # удалить
-        playlist_ids = add_video_to_detected_playlists(youtube, video_id, beat_name)
+        playlist_ids = add_video_to_detected_playlists(
+            youtube,
+            video_id,
+            beat_name,
+            playlist_map=playlist_map,
+        )
     except Exception as e:# удалить
-        warnings.append(f"playlists failed: {e}")# удалить
+        warnings.append(f"Не удалось добавить видео в плейлисты: {e}")
         playlist_ids = []# удалить
         print("PLAYLIST ERROR:", repr(e))# удалить
 
@@ -222,4 +230,5 @@ def upload_flow_web(
         playlist_ids=playlist_ids,
         hashtags=hashtags,
         seo_tags=seo_tags,
+        warnings=warnings,
     )

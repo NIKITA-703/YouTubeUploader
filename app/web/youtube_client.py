@@ -1,24 +1,24 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 from app.youtube import authenticate_youtube
+from app.youtube.channels import YouTubeChannelProfile, get_youtube_channel
 
-_youtube = None
+_youtube_clients: dict[str, object] = {}
 
 
-def get_youtube_client():
-    global _youtube
-    if _youtube is not None:
-        return _youtube
+def get_youtube_channel_profile(channel_id: str | None = None) -> YouTubeChannelProfile:
+    return get_youtube_channel(channel_id)
 
-    client_secret_path = os.getenv(
-        "YOUTUBE_CLIENT_SECRET",
-        str(Path(__file__).resolve().parents[2] / "data" / "json" / "client_secret.apps.googleusercontent.com.json"),
+
+def get_youtube_client(channel_id: str | None = None):
+    channel = get_youtube_channel_profile(channel_id)
+    cached = _youtube_clients.get(channel.channel_id)
+    if cached is not None:
+        return cached
+
+    service, credentials = authenticate_youtube(
+        str(channel.client_secret_path),
+        token_path=str(channel.token_path),
     )
-
-    service, credentials = authenticate_youtube(client_secret_path)
-    _youtube = service
-
-    return _youtube
+    _youtube_clients[channel.channel_id] = service
+    return service

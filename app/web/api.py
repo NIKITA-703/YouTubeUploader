@@ -50,8 +50,9 @@ from app.pipeline import upload_flow_web
 from app.web.common import PREVIEW_DIR, WEB_TMP_DIR, templates
 from app.web.utils import normalize_hashtags, normalize_seo_tags, parse_dt_local_msk_to_publish_at
 from app.web.youtube_client import get_youtube_client
-from app.config import load_config, PLAYLISTS
+from app.config import load_config
 from app.youtube import authenticate_youtube
+from app.youtube.channels import get_channel_playlist_title_map, get_youtube_channel
 
 from datetime import date
 
@@ -334,10 +335,18 @@ def _get_montage_job(job_id: str) -> dict | None:
         job = _montage_jobs.get(job_id)
         return dict(job) if job else None
 
-PLAYLIST_ID_TO_NAME = {
-    pid: name.title() + " Type Beat"
-    for name, pid in PLAYLISTS.items()
-}
+def _playlist_output_rows(playlist_ids: list[str], channel_id: str | None = None) -> list[dict[str, str]]:
+    playlist_labels = get_channel_playlist_title_map(channel_id)
+    out: list[dict[str, str]] = []
+    for pid in playlist_ids:
+        out.append(
+            {
+                "id": pid,
+                "name": playlist_labels.get(pid, pid),
+                "url": f"https://www.youtube.com/playlist?list={pid}",
+            }
+        )
+    return out
 
 
 @router.post("/montage/title_meta")
@@ -573,6 +582,7 @@ def _run_post_upload_shorts_pipeline(
     key: str,
     username: str,
     user_session_data: dict,
+    channel_id: str | None = None,
 ) -> None:
     manifest = _read_montage_manifest(main_filename)
     if not manifest:
@@ -638,12 +648,13 @@ def _run_post_upload_shorts_pipeline(
         shorts_day_offset = max(0, int(upload_policy.get("shorts_follow_main_publish_day_offset", 1)))
     except Exception:
         shorts_day_offset = 1
+    target_channel = get_youtube_channel(channel_id or str(manifest.get("youtube_channel_id") or "").strip() or None)
     schedule_slots = _build_short_schedule_utc(
         main_publish_at,
         schedule_times_msk=list(upload_policy.get("shorts_schedule_times_msk") or []),
         day_offset=shorts_day_offset,
     )
-    youtube = get_youtube_client()
+    youtube = get_youtube_client(target_channel.channel_id)
     cfg = load_config()
 
     for index, short_payload in enumerate(upload_payloads[: len(schedule_slots)]):
@@ -667,6 +678,7 @@ def _run_post_upload_shorts_pipeline(
             preview_path_override=preview_path_for_shorts,
             category_id="10",
             description_override=short_payload["description"],
+            playlist_map=target_channel.playlists,
         )
         add_operation_log(
             event="short_uploaded",
@@ -1255,6 +1267,7 @@ def api_fill(request: Request,
 def api_upload(
     request: Request,
     title: str = Form(...),
+    channel_id: str = Form(""),
     purchase_link: str = Form("https://www.beatstars.com/kellmibeats"),
     hashtags: str = Form(""),
     bpm: str = Form(""),
@@ -1299,6 +1312,10 @@ def api_upload(
         if not title:
             raise HTTPException(status_code=400, detail="title пустой")
         bpm = _validate_bpm_or_raise(bpm)
+        try:
+            selected_channel = get_youtube_channel((channel_id or "").strip() or None)
+        except KeyError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
         upload_id = uuid.uuid4().hex
         safe_server_video_name = Path((server_video_filename or "").strip()).name
@@ -1375,12 +1392,20 @@ def api_upload(
             "has_beatstars": request.session.get("has_beatstars"),
         }
 
-        youtube = get_youtube_client()
+        youtube = get_youtube_client(selected_channel.channel_id)
         add_operation_log(
             event="youtube_upload_started",
             username=username,
             status="running",
-            details=json.dumps({"op_id": op_id, "title": title}, ensure_ascii=False),
+            details=json.dumps(
+                {
+                    "op_id": op_id,
+                    "title": title,
+                    "channel_id": selected_channel.channel_id,
+                    "channel_title": selected_channel.title,
+                },
+                ensure_ascii=False,
+            ),
         )
         result = upload_flow_web(
             youtube=youtube,
@@ -1396,20 +1421,13 @@ def api_upload(
             publish_at_override=publish_at,
             preview_path_override=preview_path_override,
             preview_selected_by_user=preview_selected_by_user,
+            playlist_map=selected_channel.playlists,
             category_id="10",
         )
 
         video_url = f"https://youtu.be/{result.video_id}"
 
-        playlists_out = []
-        for pid in result.playlist_ids:
-            playlists_out.append(
-                {
-                    "id": pid,
-                    "name": PLAYLIST_ID_TO_NAME.get(pid, pid),
-                    "url": f"https://www.youtube.com/playlist?list={pid}",
-                }
-            )
+        playlists_out = _playlist_output_rows(result.playlist_ids, selected_channel.channel_id)
 
         if background_tasks:
             try:
@@ -1439,6 +1457,8 @@ def api_upload(
                 or shorts_manifest.get("display_name")
                 or username
             )
+            shorts_manifest["youtube_channel_id"] = selected_channel.channel_id
+            shorts_manifest["youtube_channel_title"] = selected_channel.title
             shorts_manifest["main_publish_at"] = result.publish_at
             shorts_manifest["preview_path"] = _persist_shorts_preview(
                 safe_server_video_name,
@@ -1460,6 +1480,7 @@ def api_upload(
                     key=key,
                     username=username,
                     user_session_data=user_session_data,
+                    channel_id=selected_channel.channel_id,
                 )
                 autoshorts_started = True
                 add_operation_log(
@@ -1470,6 +1491,8 @@ def api_upload(
                         {
                             "main_filename": safe_server_video_name,
                             "delay_seconds": _shorts_post_upload_delay_seconds(),
+                            "channel_id": selected_channel.channel_id,
+                            "channel_title": selected_channel.title,
                         },
                         ensure_ascii=False,
                     ),
@@ -1496,6 +1519,8 @@ def api_upload(
                     "title": title,
                     "publish_at": result.publish_at,
                     "uploaded_at_msk": datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M:%S"),
+                    "channel_id": selected_channel.channel_id,
+                    "channel_title": selected_channel.title,
                     "used_server_video": bool(safe_server_video_name),
                     "autoshorts_started": autoshorts_started,
                 },
@@ -1516,6 +1541,8 @@ def api_upload(
                 "video_url": video_url,
                 "publish_at": result.publish_at,
                 "playlists": playlists_out,
+                "channel_id": selected_channel.channel_id,
+                "channel_title": selected_channel.title,
                 "warnings": getattr(result, "warnings", []),
                 "used_server_video": bool(safe_server_video_name),
                 "autoshorts_started": autoshorts_started,

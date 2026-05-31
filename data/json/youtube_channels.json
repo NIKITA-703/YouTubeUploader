@@ -1,0 +1,37 @@
+{
+  "default_channel_id": "main",
+  "channels": [
+    {
+      "channel_id": "main",
+      "title": "Основной канал",
+      "client_secret_path": "data/json/client_secret.apps.googleusercontent.com.json",
+      "token_path": "data/json/token.json",
+      "playlists": {
+        "Travis Scott": "PLPxCwthWFiBFT1l0AKOrfMZvPhw9neEB3",
+        "Future": "PLPxCwthWFiBGAxqkCOpgoue4gCu3Q1EWK",
+        "Metro Boomin": "PLPxCwthWFiBGL5uEhoBafdFXKYwtLgMgz",
+        "Playboi Carti": "PLPxCwthWFiBFjH324wsu-UVT5MA3pAoKT",
+        "Kanye West": "PLPxCwthWFiBF1oLj4DOD2OejNaV7cPFQ_",
+        "Drake": "PLPxCwthWFiBFWWWxIw3ochHGTY9UaTYIG",
+        "Don Toliver": "PLPxCwthWFiBFeBgbbBfX_g2f4Hew9Vdi1",
+        "Southside": "PLPxCwthWFiBFIeDgnRFjCqZleSUXj4Rm9"
+      }
+    },
+    {
+      "channel_id": "UCqafETiVvcmHaVxxxR4lwUg",
+      "title": "Второй канал",
+      "client_secret_path": "data/json/client_secret.apps.googleusercontent.com.json",
+      "token_path": "data/json/youtube_tokens/UCqafETiVvcmHaVxxxR4lwUg.json",
+      "playlists": {
+        "AMBIENT": "PLwFTNzSUmzy2OQmikgehfy-zNmrS93G0_",
+        "PLUGG": "PLwFTNzSUmzy32SkPH315uRFiXE8LpAJSC",
+        "GLO": "PLwFTNzSUmzy1iwEC4Hr3skJdnfo2vzC2o",
+        "LAZER DIM 700": "PLwFTNzSUmzy3yYwMXMSbptm7dWerAwppz",
+        "OSAMASON": "PLwFTNzSUmzy3xpllIQzcMutBBUNMeNGq3",
+        "PLAYBOI CARTI": "PLwFTNzSUmzy0umkz7YePzf_KJiSLcmfJP",
+        "SWAPA": "PLwFTNzSUmzy2_SBtpSoO3CuB4OqgI-n8S",
+        "LUCKI": "PLwFTNzSUmzy2fXoiFilqxY1zy0IfxSDsT"
+      }
+    }
+  ]
+}

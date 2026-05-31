@@ -22,6 +22,7 @@ const MAX_URL_FIELDS = 4;
 const MONTAGE_DRAFT_KEY = "create_video_draft_v1";
 const MONTAGE_RESULT_KEY = "create_video_result_v1";
 const GENERATED_VIDEO_KEY = "current_generated_video_v1";
+const SELECTED_YOUTUBE_CHANNEL_KEY = "selected_youtube_channel_v1";
 
 function isPageReloadNavigation() {
   try {
@@ -84,7 +85,11 @@ function restoreDraft() {
 function syncUploadHref() {
   if (!uploadLinkEl || !titleEl) return;
   const title = String(titleEl.value || "").trim();
-  uploadLinkEl.href = title ? `/?title=${encodeURIComponent(title)}` : "/";
+  const params = new URLSearchParams();
+  if (title) params.set("title", title);
+  const selectedChannelId = String(sessionStorage.getItem(SELECTED_YOUTUBE_CHANNEL_KEY) || "").trim();
+  if (selectedChannelId) params.set("channel_id", selectedChannelId);
+  uploadLinkEl.href = params.size ? `/?${params.toString()}` : "/";
 }
 
 function createUrlRow() {

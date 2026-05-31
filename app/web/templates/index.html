@@ -8,7 +8,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
-  <link rel="stylesheet" href="/static/style.css?v=6">
+  <link rel="stylesheet" href="/static/style.css?v=9">
   <link rel="icon" href="/static/favicon.ico">
 </head>
 
@@ -76,6 +76,69 @@
         </div>
 
         <div class="card-body">
+          <div class="mb-3 glitch-field channel-picker">
+            <label class="form-label glitch-label" data-text="КАНАЛ ЗАГРУЗКИ">
+              Канал загрузки <span class="text-danger">*</span>
+            </label>
+            <div class="channel-picker__frame">
+              <div class="channel-picker__head">
+                <div class="channel-picker__eyebrow">Активный канал выгрузки</div>
+                <div id="youtube_channel_badge" class="channel-picker__badge">
+                  {% for channel in youtube_channels %}
+                  {% if channel.channel_id == selected_youtube_channel_id %}{{ channel.title }}{% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+              <div class="channel-picker__select-wrap">
+                <select id="youtube_channel" class="form-select glitch-input channel-picker__select visually-hidden" aria-hidden="true" tabindex="-1">
+                  {% for channel in youtube_channels %}
+                  <option
+                    value="{{ channel.channel_id }}"
+                    data-channel-title="{{ channel.title }}"
+                    {% if channel.channel_id == selected_youtube_channel_id %}selected{% endif %}
+                  >
+                    {{ channel.title }}
+                  </option>
+                  {% endfor %}
+                </select>
+                <button
+                  id="youtube_channel_trigger"
+                  type="button"
+                  class="channel-picker__trigger"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="youtube_channel_menu"
+                >
+                  <span class="channel-picker__trigger-meta">Канал назначения</span>
+                  <span id="youtube_channel_value" class="channel-picker__trigger-value">
+                    {% for channel in youtube_channels %}
+                    {% if channel.channel_id == selected_youtube_channel_id %}{{ channel.title }}{% endif %}
+                    {% endfor %}
+                  </span>
+                  <span class="channel-picker__trigger-icon" aria-hidden="true"></span>
+                </button>
+                <div id="youtube_channel_menu" class="channel-picker__menu" role="listbox" aria-label="Канал загрузки">
+                  {% for channel in youtube_channels %}
+                  <button
+                    type="button"
+                    class="channel-picker__option {% if channel.channel_id == selected_youtube_channel_id %}is-active{% endif %}"
+                    role="option"
+                    data-channel-id="{{ channel.channel_id }}"
+                    data-channel-title="{{ channel.title }}"
+                    data-option-index="{{ loop.index0 }}"
+                    aria-selected="{% if channel.channel_id == selected_youtube_channel_id %}true{% else %}false{% endif %}"
+                  >
+                    <span class="channel-picker__option-meta">Канал {{ "%02d"|format(loop.index) }}</span>
+                    <span class="channel-picker__option-title">{{ channel.title }}</span>
+                    <span class="channel-picker__option-mark">Активный</span>
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            <div class="form-text">Выбери канал, в который нужно загрузить основное видео и shorts.</div>
+          </div>
+
           <div class="mb-3">
             <label class="form-label glitch-label" data-text="ВЫБОР ВИДЕО ФАЙЛА">
               Выбор видео файла <span class="text-danger">*</span>
@@ -296,7 +359,33 @@
   <div id="lightbox_caption"></div>
 </div>
 
-<script src="/static/app.js?v=14"></script>
+<div id="upload_confirm_modal" class="upload-confirm-modal" aria-hidden="true">
+  <div class="upload-confirm-modal__backdrop"></div>
+  <div class="upload-confirm-modal__panel" role="dialog" aria-modal="true" aria-labelledby="upload_confirm_title">
+    <div class="upload-confirm-modal__label">SYSTEM CONFIRM</div>
+    <div id="upload_confirm_title" class="upload-confirm-modal__title">Подтвердите загрузку</div>
+    <div class="upload-confirm-modal__body">
+      <div class="upload-confirm-modal__row upload-confirm-modal__row--channel">
+        <span class="upload-confirm-modal__key">Канал</span>
+        <span id="upload_confirm_channel" class="upload-confirm-modal__value upload-confirm-modal__value--channel">-</span>
+      </div>
+      <div class="upload-confirm-modal__row">
+        <span class="upload-confirm-modal__key">Видео</span>
+        <span id="upload_confirm_video" class="upload-confirm-modal__value">-</span>
+      </div>
+    </div>
+    <div class="upload-confirm-modal__actions">
+      <button id="upload_confirm_cancel" type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--md" data-text="НЕТ">
+        <span class="btn-text">НЕТ</span>
+      </button>
+      <button id="upload_confirm_accept" type="button" class="upload-confirm-modal__accept" data-text="ДА">
+        <span class="btn-text">ДА</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js?v=17"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
 </body>

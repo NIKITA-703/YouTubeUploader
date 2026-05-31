@@ -46,7 +46,12 @@ def _without_http_proxies():
                 os.environ[key] = value
 
 
-def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
+def authenticate_youtube(
+    client_secret_path: str,
+    scopes: list[str] = SCOPES,
+    *,
+    token_path: str | Path | None = None,
+):
     """
     Авторизация YouTube с поддержкой сохранения токена в файл.
     Если token.json существует, использует его. Если нет — открывает браузер.
@@ -66,13 +71,18 @@ def authenticate_youtube(client_secret_path: str, scopes: list[str] = SCOPES):
             client_secret = fallback
 
     creds = None
-    # Путь к файлу с токеном будет в той же папке, что и client_secret
-    token_path = client_secret.parent / "token.json"
+    # По умолчанию сохраняем токен рядом с client_secret, но путь можно переопределить.
+    token_path = Path(token_path).resolve() if token_path else (client_secret.parent / "token.json").resolve()
+    token_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 1. Пытаемся загрузить уже существующий токен
     if token_path.exists():
-        creds = Credentials.from_authorized_user_file(str(token_path), scopes)
-        print(f"--> Загружен существующий токен из {token_path}")
+        try:
+            creds = Credentials.from_authorized_user_file(str(token_path), scopes)
+            print(f"--> Загружен существующий токен из {token_path}")
+        except Exception as e:
+            print(f"--> Не удалось прочитать токен {token_path}: {e}. Будет выполнен новый OAuth вход.")
+            creds = None
 
     # 2. Если токена нет или он протух
     if not creds or not creds.valid:

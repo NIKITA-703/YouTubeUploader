@@ -4,6 +4,11 @@ const bundleFileEl = document.getElementById("bundle_file");
 const hashtagsEl = document.getElementById("hashtags");
 const seoEl = document.getElementById("seo_tags");
 const publishEl = document.getElementById("publish_dt");
+const youtubeChannelEl = document.getElementById("youtube_channel");
+const youtubeChannelBadgeEl = document.getElementById("youtube_channel_badge");
+const youtubeChannelTriggerEl = document.getElementById("youtube_channel_trigger");
+const youtubeChannelValueEl = document.getElementById("youtube_channel_value");
+const youtubeChannelMenuEl = document.getElementById("youtube_channel_menu");
 
 const fillBtn = document.getElementById("fill_btn");
 const clearBtn = document.getElementById("clear_btn");
@@ -23,6 +28,11 @@ const statusEl = document.getElementById("status");
 const statusOverlayEl = document.getElementById("status_overlay");
 const statusOverlayTextEl = document.getElementById("status_overlay_text");
 const resultBox = document.getElementById("resultBox");
+const uploadConfirmModalEl = document.getElementById("upload_confirm_modal");
+const uploadConfirmVideoEl = document.getElementById("upload_confirm_video");
+const uploadConfirmChannelEl = document.getElementById("upload_confirm_channel");
+const uploadConfirmAcceptBtn = document.getElementById("upload_confirm_accept");
+const uploadConfirmCancelBtn = document.getElementById("upload_confirm_cancel");
 
 const uploadProgressWrap = document.getElementById("uploadProgressWrap");
 const uploadProgressBar = document.getElementById("uploadProgressBar");
@@ -33,6 +43,7 @@ const regenSeoBtn = document.getElementById("regen_seo_btn");
 const purchaseLinkEl = document.getElementById("purchase_link");
 const createVideoLinkEl = document.getElementById("create_video_link");
 const GENERATED_VIDEO_KEY = "current_generated_video_v1";
+const SELECTED_YOUTUBE_CHANNEL_KEY = "selected_youtube_channel_v1";
 
 const bpmEl = document.getElementById("bpm");
 const keyEl = document.getElementById("key");
@@ -66,6 +77,8 @@ const backendActionButtons = [
   refreshGalleryBtn,
   uploadBtn,
   importBundleBtn,
+  youtubeChannelEl,
+  youtubeChannelTriggerEl,
 ].filter(Boolean);
 
 function escapeHtml(value) {
@@ -86,8 +99,130 @@ function safeCssEscape(value) {
 
 function syncCreateVideoHref() {
   if (!createVideoLinkEl || !titleEl) return;
+  const selectedChannelId = String(youtubeChannelEl?.value || "").trim();
   const title = String(titleEl.value || "").trim();
-  createVideoLinkEl.href = title ? `/create-video?title=${encodeURIComponent(title)}` : "/create-video";
+  const params = new URLSearchParams();
+  if (title) params.set("title", title);
+  if (selectedChannelId) params.set("channel_id", selectedChannelId);
+  createVideoLinkEl.href = params.size ? `/create-video?${params.toString()}` : "/create-video";
+}
+
+function restoreSelectedYoutubeChannel() {
+  if (!youtubeChannelEl) return;
+  const saved = String(sessionStorage.getItem(SELECTED_YOUTUBE_CHANNEL_KEY) || "").trim();
+  if (saved && Array.from(youtubeChannelEl.options).some((option) => option.value === saved)) {
+    youtubeChannelEl.value = saved;
+  }
+}
+
+function persistSelectedYoutubeChannel() {
+  if (!youtubeChannelEl) return;
+  const selected = String(youtubeChannelEl.value || "").trim();
+  if (!selected) {
+    sessionStorage.removeItem(SELECTED_YOUTUBE_CHANNEL_KEY);
+    return;
+  }
+  sessionStorage.setItem(SELECTED_YOUTUBE_CHANNEL_KEY, selected);
+}
+
+function getYoutubeChannelOptionButtons() {
+  return Array.from(document.querySelectorAll(".channel-picker__option"));
+}
+
+function getSelectedYoutubeChannelTitle() {
+  if (!youtubeChannelEl) return "";
+  const option = youtubeChannelEl.options[youtubeChannelEl.selectedIndex];
+  return String(option?.dataset?.channelTitle || option?.textContent || "").trim();
+}
+
+function syncSelectedYoutubeChannelUi() {
+  if (!youtubeChannelEl) return;
+  const title = getSelectedYoutubeChannelTitle();
+  if (youtubeChannelBadgeEl) {
+    youtubeChannelBadgeEl.textContent = title || "Канал не выбран";
+  }
+  if (youtubeChannelValueEl) {
+    youtubeChannelValueEl.textContent = title || "Канал не выбран";
+  }
+
+  for (const optionBtn of getYoutubeChannelOptionButtons()) {
+    const isActive = optionBtn.dataset.channelId === String(youtubeChannelEl.value || "");
+    optionBtn.classList.toggle("is-active", isActive);
+    optionBtn.setAttribute("aria-selected", isActive ? "true" : "false");
+    optionBtn.style.order = isActive ? "-1" : String(Number(optionBtn.dataset.optionIndex || "0") + 1);
+  }
+}
+
+function closeYoutubeChannelMenu() {
+  if (!youtubeChannelTriggerEl || !youtubeChannelMenuEl) return;
+  youtubeChannelTriggerEl.setAttribute("aria-expanded", "false");
+  youtubeChannelMenuEl.classList.remove("is-open");
+}
+
+function openYoutubeChannelMenu() {
+  if (!youtubeChannelTriggerEl || !youtubeChannelMenuEl || youtubeChannelTriggerEl.disabled) return;
+  youtubeChannelTriggerEl.setAttribute("aria-expanded", "true");
+  youtubeChannelMenuEl.classList.add("is-open");
+}
+
+function toggleYoutubeChannelMenu() {
+  if (!youtubeChannelMenuEl?.classList.contains("is-open")) {
+    openYoutubeChannelMenu();
+    return;
+  }
+  closeYoutubeChannelMenu();
+}
+
+function openUploadConfirmModal({ title, channelTitle }) {
+  if (!uploadConfirmModalEl || !uploadConfirmAcceptBtn || !uploadConfirmCancelBtn) {
+    return Promise.resolve(window.confirm(`Загрузить видео "${title}" на канал "${channelTitle}"?`));
+  }
+
+  if (uploadConfirmVideoEl) {
+    uploadConfirmVideoEl.textContent = title || "Без названия";
+  }
+  if (uploadConfirmChannelEl) {
+    uploadConfirmChannelEl.textContent = channelTitle || "Канал не выбран";
+  }
+
+  uploadConfirmModalEl.classList.add("is-visible");
+  uploadConfirmModalEl.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (accepted) => {
+      if (settled) return;
+      settled = true;
+      uploadConfirmModalEl.classList.remove("is-visible");
+      uploadConfirmModalEl.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("modal-open");
+      uploadConfirmAcceptBtn.removeEventListener("click", onAccept);
+      uploadConfirmCancelBtn.removeEventListener("click", onCancel);
+      uploadConfirmModalEl.removeEventListener("click", onBackdropClick);
+      document.removeEventListener("keydown", onKeyDown);
+      resolve(accepted);
+    };
+
+    const onAccept = () => finish(true);
+    const onCancel = () => finish(false);
+    const onBackdropClick = (event) => {
+      if (event.target === uploadConfirmModalEl || event.target.classList.contains("upload-confirm-modal__backdrop")) {
+        finish(false);
+      }
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        finish(false);
+      }
+    };
+
+    uploadConfirmAcceptBtn.addEventListener("click", onAccept);
+    uploadConfirmCancelBtn.addEventListener("click", onCancel);
+    uploadConfirmModalEl.addEventListener("click", onBackdropClick);
+    document.addEventListener("keydown", onKeyDown);
+  });
 }
 
 function readGeneratedVideoDraft() {
@@ -150,6 +285,9 @@ function setBackendButtonsDisabled(disabled) {
   for (const btn of backendActionButtons) {
     btn.disabled = !!disabled;
   }
+  if (disabled) {
+    closeYoutubeChannelMenu();
+  }
 }
 
 function setStatus(message) {
@@ -173,7 +311,7 @@ function setStatus(message) {
   const isError = /(ошибка|error)/i.test(lower);
   const isSuccess =
     text.includes("✅") ||
-    /(готово|обновлен|обновлена|обновлены|выбрано|очищено|успех|success)/i.test(lower);
+    /(готово|обновлен|обновлена|обновлены|выбрано|очищено|успех|success|отменен|отменена|отменено|cancelled|canceled)/i.test(lower);
   const isBusy = !isError && !isSuccess;
 
   uiBusy = isBusy;
@@ -847,11 +985,9 @@ importBundleBtn?.addEventListener("click", async () => {
   }
 });
 
-uploadBtn?.addEventListener("click", () => {
+uploadBtn?.addEventListener("click", async () => {
   if (uiBusy) return;
   try {
-    hideResult();
-
     const title = String(titleEl?.value || "").trim();
     if (!title) throw new Error("Заполните название");
 
@@ -863,6 +999,15 @@ uploadBtn?.addEventListener("click", () => {
 
     const bpmValue = normalizeAndValidateBpm(bpmEl?.value || "");
     if (bpmEl) bpmEl.value = bpmValue;
+
+    const channelTitle = getSelectedYoutubeChannelTitle();
+    const accepted = await openUploadConfirmModal({ title, channelTitle });
+    if (!accepted) {
+      setStatus("Загрузка отменена");
+      return;
+    }
+
+    hideResult();
 
     setStatus("Загружаю видео на YouTube...");
     uploadProgressWrap?.classList.remove("d-none");
@@ -879,6 +1024,7 @@ uploadBtn?.addEventListener("click", () => {
     fd.append("publish_dt_local", publishEl?.value || "");
     fd.append("bpm", bpmValue);
     fd.append("key", keyEl?.value || "");
+    fd.append("channel_id", String(youtubeChannelEl?.value || "").trim());
 
     if (previewFileEl?.files && previewFileEl.files.length > 0) {
       fd.append("preview_file", previewFileEl.files[0]);
@@ -943,6 +1089,7 @@ uploadBtn?.addEventListener("click", () => {
 
       const publishText = data.publish_at ? formatDate(data.publish_at) : "Сразу после загрузки";
       const url = data.video_url || (data.video_id ? `https://youtu.be/${data.video_id}` : "");
+      const channelTitle = String(data.channel_title || "").trim();
       const playlists = Array.isArray(data.playlists) ? data.playlists : [];
       const playlistsHtml = playlists.length
         ? `<ul class="glitch-success-list">` + playlists.map((playlist) => {
@@ -975,6 +1122,7 @@ uploadBtn?.addEventListener("click", () => {
           </div>
 
           <div class="glitch-success-item"><b>VIDEO_ID:</b> <span class="text-white">${escapeHtml(String(data.video_id || "N/A"))}</span></div>
+          ${channelTitle ? `<div class="glitch-success-item"><b>КАНАЛ:</b> <span class="text-white">${escapeHtml(channelTitle)}</span></div>` : ""}
           <div class="glitch-success-item"><b>ПУБЛИКАЦИЯ:</b> <span class="text-white">${escapeHtml(publishText)}</span></div>
           ${url ? `
             <div class="glitch-success-item">
@@ -1017,6 +1165,9 @@ bpmEl?.addEventListener("input", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+  restoreSelectedYoutubeChannel();
+  persistSelectedYoutubeChannel();
+  syncSelectedYoutubeChannelUi();
   syncCreateVideoHref();
   loadGeneratedVideoSelection();
   loadGallery().catch(() => {});
@@ -1028,6 +1179,43 @@ document.addEventListener("DOMContentLoaded", () => {
   if (titleEl) {
     titleEl.addEventListener("input", syncCreateVideoHref);
   }
+
+  youtubeChannelTriggerEl?.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleYoutubeChannelMenu();
+  });
+
+  for (const optionBtn of getYoutubeChannelOptionButtons()) {
+    optionBtn.addEventListener("click", () => {
+      if (!youtubeChannelEl) return;
+      const nextChannelId = String(optionBtn.dataset.channelId || "").trim();
+      if (!nextChannelId) return;
+      youtubeChannelEl.value = nextChannelId;
+      youtubeChannelEl.dispatchEvent(new Event("change", { bubbles: true }));
+      closeYoutubeChannelMenu();
+    });
+  }
+
+  youtubeChannelEl?.addEventListener("change", () => {
+    persistSelectedYoutubeChannel();
+    syncSelectedYoutubeChannelUi();
+    syncCreateVideoHref();
+    setStatus("Канал загрузки выбран ✅");
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!youtubeChannelMenuEl?.classList.contains("is-open")) return;
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (youtubeChannelTriggerEl?.contains(target) || youtubeChannelMenuEl?.contains(target)) return;
+    closeYoutubeChannelMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeYoutubeChannelMenu();
+    }
+  });
 
   clearServerVideoBtn?.addEventListener("click", () => {
     clearGeneratedVideoSelection(true);

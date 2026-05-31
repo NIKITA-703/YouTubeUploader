@@ -3,7 +3,7 @@
   "channels": [
     {
       "channel_id": "main",
-      "title": "Основной канал",
+      "title": "SevenLab — Первый",
       "client_secret_path": "data/json/client_secret.apps.googleusercontent.com.json",
       "token_path": "data/json/token.json",
       "playlists": {
@@ -19,7 +19,7 @@
     },
     {
       "channel_id": "UCqafETiVvcmHaVxxxR4lwUg",
-      "title": "Второй канал",
+      "title": "SevenLabX — Второй",
       "client_secret_path": "data/json/client_secret.apps.googleusercontent.com.json",
       "token_path": "data/json/youtube_tokens/UCqafETiVvcmHaVxxxR4lwUg.json",
       "playlists": {

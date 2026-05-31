@@ -1193,8 +1193,23 @@ textarea.glitch-input:focus {
 .glitch-btn {
   position: relative;
   overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: "Fira Code", Consolas, monospace;
   letter-spacing: 0.12em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.glitch-btn .btn-text {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  line-height: 1.1;
 }
 
 /* sizes */
@@ -2253,8 +2268,23 @@ textarea.glitch-input:focus {
 .glitch-btn {
   position: relative;
   overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: "Fira Code", Consolas, monospace;
   letter-spacing: 0.12em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.glitch-btn .btn-text {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  line-height: 1.1;
 }
 
 /* sizes */
@@ -3392,7 +3422,7 @@ body.modal-open {
 .upload-confirm-modal__value--channel {
   font-size: 1.18rem;
   letter-spacing: 0.06em;
-  color: #f8ffff;
+  color: #34ff89;
   text-transform: uppercase;
   text-shadow: 0 0 18px rgba(0, 242, 234, 0.18);
 }

@@ -155,6 +155,60 @@ def get_user(username: str):
     return dict(user) if user else None
 
 
+def upsert_user(
+    *,
+    username: str,
+    display_name: str,
+    password_hash: str,
+    email: str = "",
+    instagram: str = "",
+    telegram: str = "",
+    has_beatstars: int = 0,
+):
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        INSERT INTO users (username, display_name, password_hash, email, instagram, telegram, has_beatstars)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(username) DO UPDATE SET
+            display_name = excluded.display_name,
+            password_hash = excluded.password_hash,
+            email = excluded.email,
+            instagram = excluded.instagram,
+            telegram = excluded.telegram,
+            has_beatstars = excluded.has_beatstars
+        ''',
+        (username, display_name, password_hash, email, instagram, telegram, int(has_beatstars)),
+    )
+    conn.commit()
+    conn.close()
+
+
+def list_users() -> list[dict]:
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        SELECT id, username, display_name, email, instagram, telegram, has_beatstars
+        FROM users
+        ORDER BY lower(username) ASC
+        '''
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def delete_user(username: str) -> None:
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM users WHERE username = ?", (username,))
+    conn.commit()
+    conn.close()
+
+
 def add_video_to_db(video_id, title, hashtags, seo_tags, scheduled_publish_at: str | None = None):
     # Используем str(DB_PATH) и добавляем timeout
     conn = sqlite3.connect(str(DB_PATH), timeout=10)

@@ -207,6 +207,103 @@ def list_base_schedule_slots() -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def weekday_label(weekday: int) -> str:
+    labels = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+    return labels[int(weekday)]
+
+
+def replace_base_schedule(assignments: list[dict[str, Any]]) -> None:
+    if not assignments:
+        raise ValueError("Базовое расписание не может быть пустым")
+
+    valid_channels = {channel.channel_id for channel in list_youtube_channels()}
+    valid_users = {str(user["username"]).lower() for user in list_active_users()}
+    now = datetime.now()
+
+    slot_keys: set[tuple[str, int]] = set()
+    usernames_used: set[str] = set()
+    normalized_rows: list[tuple[str, int, str]] = []
+
+    for raw in assignments:
+        channel_id = str(raw.get("channel_id") or "").strip()
+        username = _normalize_username(raw.get("username"))
+        try:
+            weekday = int(raw.get("weekday"))
+        except Exception as error:
+            raise ValueError("Некорректный день недели в расписании") from error
+
+        if channel_id not in valid_channels:
+            raise ValueError(f"Неизвестный канал: {channel_id}")
+        if weekday < 0 or weekday > 6:
+            raise ValueError("День недели должен быть в диапазоне 0..6")
+        if username not in valid_users:
+            raise ValueError(f"Пользователь не найден или неактивен: {username}")
+        slot_key = (channel_id, weekday)
+        if slot_key in slot_keys:
+            raise ValueError("В расписании не должно быть двух одинаковых слотов канала и дня")
+        if username in usernames_used:
+            raise ValueError("Один пользователь не может занимать несколько базовых слотов")
+
+        slot_keys.add(slot_key)
+        usernames_used.add(username)
+        normalized_rows.append((channel_id, weekday, username))
+
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("BEGIN")
+        cursor.execute("DELETE FROM schedule_base_slots")
+        cursor.executemany(
+            '''
+            INSERT INTO schedule_base_slots (channel_id, weekday, username, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, 1, ?, ?)
+            ''',
+            [(channel_id, weekday, username, now, now) for channel_id, weekday, username in normalized_rows],
+        )
+        cursor.execute(
+            '''
+            UPDATE schedule_replacement_requests
+            SET status = ?, responded_at = ?
+            WHERE week_start = ? AND status IN (?, ?)
+            ''',
+            (
+                REQUEST_CANCELLED,
+                now,
+                week_start_for().isoformat(),
+                REQUEST_PENDING,
+                REQUEST_ACCEPTED,
+            ),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def cancel_replacement_request_admin(request_id: int) -> dict[str, Any]:
+    request_row = get_replacement_request(request_id)
+    if not request_row:
+        raise ValueError("Запрос не найден")
+    if request_row["status"] in {REQUEST_CANCELLED, REQUEST_DECLINED}:
+        return request_row
+
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        UPDATE schedule_replacement_requests
+        SET status = ?, responded_at = ?
+        WHERE id = ?
+        ''',
+        (REQUEST_CANCELLED, datetime.now(), int(request_id)),
+    )
+    conn.commit()
+    conn.close()
+    return get_replacement_request(request_id) or request_row
+
+
 def get_base_schedule_for_range(start_day: date, end_day: date) -> list[EffectiveSlot]:
     start = min(start_day, end_day)
     end = max(start_day, end_day)

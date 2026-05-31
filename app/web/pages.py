@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+from datetime import date
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request, HTTPException
@@ -11,6 +12,22 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.config import load_config
 from app.database import delete_user, get_user, list_users, upsert_user
 from app.web.common import templates
+from app.weekly_schedule import (
+    REQUEST_ACCEPTED,
+    REQUEST_CANCELLED,
+    REQUEST_DECLINED,
+    REQUEST_PENDING,
+    cancel_replacement_request_admin,
+    current_msk_date,
+    ensure_schedule_bootstrap,
+    format_day_label,
+    list_active_users,
+    list_base_schedule_slots,
+    list_replacement_requests,
+    replace_base_schedule,
+    week_start_for,
+    weekday_label,
+)
 from app.youtube.channels import (
     get_default_youtube_channel_id,
     get_public_youtube_channels,
@@ -49,6 +66,7 @@ def _admin_feedback(request: Request) -> dict[str, str]:
         "created_username": (request.query_params.get("created") or "").strip(),
         "updated_username": (request.query_params.get("updated") or "").strip(),
         "deleted_username": (request.query_params.get("deleted") or "").strip(),
+        "success_message": (request.query_params.get("success") or "").strip(),
         "error_message": (request.query_params.get("error") or "").strip(),
     }
 
@@ -66,6 +84,74 @@ def _admin_common_context(request: Request, **extra):
 def _is_create_video_enabled() -> bool:
     value = (os.getenv("CREATE_VIDEO_ENABLED", "1") or "").strip().lower()
     return value not in {"0", "false", "off", "no"}
+
+
+def _weekday_choice_rows() -> list[dict[str, str | int]]:
+    return [{"value": index, "label": weekday_label(index)} for index in range(7)]
+
+
+def _replacement_status_label(status: str) -> str:
+    return {
+        REQUEST_PENDING: "Ожидает ответа",
+        REQUEST_ACCEPTED: "Активна",
+        REQUEST_DECLINED: "Отклонена",
+        REQUEST_CANCELLED: "Отменена",
+    }.get(str(status or ""), str(status or "—"))
+
+
+def _replacement_status_class(status: str) -> str:
+    return {
+        REQUEST_PENDING: "warning",
+        REQUEST_ACCEPTED: "success",
+        REQUEST_DECLINED: "secondary",
+        REQUEST_CANCELLED: "dark",
+    }.get(str(status or ""), "secondary")
+
+
+def _build_schedule_admin_rows() -> list[dict]:
+    ensure_schedule_bootstrap()
+    channel_map = {item["channel_id"]: item["title"] for item in get_public_youtube_channels()}
+    rows: list[dict] = []
+    for row in list_base_schedule_slots():
+        rows.append(
+            {
+                "channel_id": row["channel_id"],
+                "channel_title": channel_map.get(row["channel_id"], row["channel_id"]),
+                "weekday": int(row["weekday"]),
+                "weekday_label": weekday_label(int(row["weekday"])),
+                "username": row["username"],
+            }
+        )
+    rows.sort(key=lambda item: (int(item["weekday"]), str(item["channel_title"])))
+    return rows
+
+
+def _build_replacement_admin_rows() -> list[dict]:
+    ensure_schedule_bootstrap()
+    channel_map = {item["channel_id"]: item["title"] for item in get_public_youtube_channels()}
+    user_map = {user["username"]: user for user in list_active_users()}
+    rows: list[dict] = []
+    for item in list_replacement_requests(week_start=week_start_for()):
+        owner = user_map.get(str(item["owner_username"]).lower()) or {}
+        requester = user_map.get(str(item["requester_username"]).lower()) or {}
+        target = user_map.get(str(item["target_username"]).lower()) or {}
+        status = str(item["status"] or "")
+        rows.append(
+            {
+                "id": item["id"],
+                "slot_date": str(item["slot_date"]),
+                "slot_label": format_day_label(date.fromisoformat(str(item["slot_date"]))),
+                "channel_title": channel_map.get(str(item["channel_id"]), str(item["channel_id"])),
+                "owner_name": owner.get("display_name") or item["owner_username"],
+                "requester_name": requester.get("display_name") or item["requester_username"],
+                "target_name": target.get("display_name") or item["target_username"],
+                "status": status,
+                "status_label": _replacement_status_label(status),
+                "status_class": _replacement_status_class(status),
+                "can_cancel": status in {REQUEST_PENDING, REQUEST_ACCEPTED},
+            }
+        )
+    return rows
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -127,6 +213,7 @@ def admin_panel(request: Request):
         _admin_common_context(
             request,
             users_count=len(users),
+            schedule_slots_count=len(_build_schedule_admin_rows()),
         ),
     )
 
@@ -170,6 +257,25 @@ def admin_users_page(request: Request):
     )
 
 
+@router.get("/admin/schedule", response_class=HTMLResponse)
+def admin_schedule_page(request: Request):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return templates.TemplateResponse(
+        "admin_schedule.html",
+        _admin_common_context(
+            request,
+            weekday_choices=_weekday_choice_rows(),
+            channel_choices=get_public_youtube_channels(),
+            user_choices=list_active_users(),
+            schedule_rows=_build_schedule_admin_rows(),
+            replacement_rows=_build_replacement_admin_rows(),
+            current_week_start=week_start_for().strftime("%d.%m.%Y"),
+        ),
+    )
+
+
 @router.get("/admin/users/{username}/edit", response_class=HTMLResponse)
 def admin_edit_user_page(request: Request, username: str):
     if not _is_admin(request):
@@ -191,6 +297,53 @@ def admin_edit_user_page(request: Request, username: str):
             user_form=user,
         ),
     )
+
+
+@router.post("/admin/schedule")
+async def admin_schedule_update(request: Request):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    form = await request.form()
+    channel_ids = form.getlist("channel_id")
+    weekdays = form.getlist("weekday")
+    usernames = form.getlist("username")
+
+    if not channel_ids or not weekdays or not usernames:
+        return _build_admin_redirect("/admin/schedule", error="Расписание не было передано")
+    if not (len(channel_ids) == len(weekdays) == len(usernames)):
+        return _build_admin_redirect("/admin/schedule", error="Строки расписания повреждены")
+
+    assignments = []
+    for channel_id, weekday, username in zip(channel_ids, weekdays, usernames):
+        assignments.append(
+            {
+                "channel_id": str(channel_id or "").strip(),
+                "weekday": str(weekday or "").strip(),
+                "username": str(username or "").strip(),
+            }
+        )
+
+    try:
+        replace_base_schedule(assignments)
+    except ValueError as error:
+        return _build_admin_redirect("/admin/schedule", error=str(error))
+
+    return _build_admin_redirect(
+        "/admin/schedule",
+        success="Базовое расписание обновлено. Текущие pending/accepted замены на этой неделе сброшены.",
+    )
+
+
+@router.post("/admin/schedule/requests/{request_id}/cancel")
+def admin_schedule_cancel_request(request: Request, request_id: int):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        cancel_replacement_request_admin(int(request_id))
+    except ValueError as error:
+        return _build_admin_redirect("/admin/schedule", error=str(error))
+    return _build_admin_redirect("/admin/schedule", success="Запрос на замену отменён администратором.")
 
 
 @router.post("/admin/users")

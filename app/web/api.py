@@ -66,11 +66,18 @@ _montage_jobs: dict[str, dict] = {}
 _montage_jobs_lock = threading.Lock()
 
 
+def _admin_usernames() -> set[str]:
+    admin_usernames_raw = os.getenv("ADMIN_USERNAMES", "kellmipenis,kellmi")
+    return {u.strip().lower() for u in admin_usernames_raw.split(",") if u.strip()}
+
+
+def _is_admin_username(username: str) -> bool:
+    return (username or "").strip().lower() in _admin_usernames()
+
+
 def _ensure_admin(request: Request) -> None:
     username = (request.session.get("username") or "").strip().lower()
-    admin_usernames_raw = os.getenv("ADMIN_USERNAMES", "kellmipenis,kellmi")
-    admin_usernames = {u.strip().lower() for u in admin_usernames_raw.split(",") if u.strip()}
-    if username not in admin_usernames:
+    if not _is_admin_username(username):
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
@@ -852,8 +859,11 @@ def _resolve_publish_day_msk(publish_dt_local: str) -> date:
 
 def _build_channel_access_payload(username: str, publish_day: date) -> dict[str, Any]:
     ensure_schedule_bootstrap()
-    allowed_channel_ids = set(get_allowed_channel_ids_for_user_on_day(username, publish_day))
     channels = get_public_youtube_channels()
+    if _is_admin_username(username):
+        allowed_channel_ids = {str(item["channel_id"]) for item in channels}
+    else:
+        allowed_channel_ids = set(get_allowed_channel_ids_for_user_on_day(username, publish_day))
     channels_payload = []
     for channel in channels:
         channel_id = str(channel["channel_id"])
@@ -1306,20 +1316,21 @@ def api_upload(
             raise HTTPException(status_code=400, detail=str(error)) from error
         publish_day_msk = _resolve_publish_day_msk(publish_dt_local)
         ensure_schedule_bootstrap()
-        allowed_channel_ids = get_allowed_channel_ids_for_user_on_day(username, publish_day_msk)
-        if not allowed_channel_ids:
-            raise HTTPException(
-                status_code=403,
-                detail=f"На дату {publish_day_msk.strftime('%d.%m.%Y')} у тебя нет активного слота для загрузки.",
-            )
-        if selected_channel.channel_id not in allowed_channel_ids:
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    f"Канал «{selected_channel.title}» недоступен на "
-                    f"{publish_day_msk.strftime('%d.%m.%Y')} для твоего расписания."
-                ),
-            )
+        if not _is_admin_username(username):
+            allowed_channel_ids = get_allowed_channel_ids_for_user_on_day(username, publish_day_msk)
+            if not allowed_channel_ids:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"На дату {publish_day_msk.strftime('%d.%m.%Y')} у тебя нет активного слота для загрузки.",
+                )
+            if selected_channel.channel_id not in allowed_channel_ids:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        f"Канал «{selected_channel.title}» недоступен на "
+                        f"{publish_day_msk.strftime('%d.%m.%Y')} для твоего расписания."
+                    ),
+                )
 
         upload_id = uuid.uuid4().hex
         safe_server_video_name = Path((server_video_filename or "").strip()).name

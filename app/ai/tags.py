@@ -15,7 +15,7 @@ from app.database import get_ai_knowledge_base, get_all_entities
 # Безопасно держать общий объём <= 450–480 символов.
 YOUTUBE_TAGS_MAX_TOTAL_CHARS = 460
 MAX_HASHTAGS = 3
-MAX_SEO_TAGS = 15
+MAX_SEO_TAGS = 22
 
 
 def _normalize_space(s: str) -> str:

@@ -41,9 +41,24 @@ def init_db():
                 email TEXT,
                 instagram TEXT,
                 telegram TEXT,
-                has_beatstars INTEGER DEFAULT 0  -- 1 если нужно поле Beatstars, 0 если нет
+                has_beatstars INTEGER DEFAULT 0,  -- 1 если нужно поле Beatstars, 0 если нет
+                telegram_user_id INTEGER,
+                telegram_chat_id INTEGER,
+                telegram_username TEXT,
+                is_active INTEGER DEFAULT 1
             )
         ''')
+
+    cursor.execute("PRAGMA table_info(users)")
+    user_cols = {row[1] for row in cursor.fetchall()}
+    if "telegram_user_id" not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN telegram_user_id INTEGER")
+    if "telegram_chat_id" not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN telegram_chat_id INTEGER")
+    if "telegram_username" not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN telegram_username TEXT")
+    if "is_active" not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
 
     cursor.execute('''
             CREATE TABLE IF NOT EXISTS known_entities (
@@ -86,6 +101,60 @@ def init_db():
                 UNIQUE(day_msk, username)
             )
         ''')
+
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS schedule_base_slots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id TEXT NOT NULL,
+                weekday INTEGER NOT NULL,
+                username TEXT NOT NULL,
+                is_active INTEGER DEFAULT 1,
+                created_at DATETIME,
+                updated_at DATETIME,
+                UNIQUE(channel_id, weekday)
+            )
+        ''')
+
+    cursor.execute('''
+            CREATE TABLE IF NOT EXISTS schedule_replacement_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                week_start TEXT NOT NULL,
+                slot_date TEXT NOT NULL,
+                channel_id TEXT NOT NULL,
+                owner_username TEXT NOT NULL,
+                requester_username TEXT NOT NULL,
+                target_username TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at DATETIME,
+                responded_at DATETIME,
+                requester_tg_user_id INTEGER,
+                target_tg_user_id INTEGER
+            )
+        ''')
+    cursor.execute(
+        '''
+        CREATE INDEX IF NOT EXISTS idx_schedule_base_slots_username
+        ON schedule_base_slots(username)
+        '''
+    )
+    cursor.execute(
+        '''
+        CREATE INDEX IF NOT EXISTS idx_schedule_requests_slot
+        ON schedule_replacement_requests(week_start, slot_date, channel_id, status)
+        '''
+    )
+    cursor.execute(
+        '''
+        CREATE INDEX IF NOT EXISTS idx_schedule_requests_target
+        ON schedule_replacement_requests(target_username, week_start, status)
+        '''
+    )
+    cursor.execute(
+        '''
+        CREATE INDEX IF NOT EXISTS idx_schedule_requests_requester
+        ON schedule_replacement_requests(requester_username, week_start, status)
+        '''
+    )
 
     # cursor.execute('SELECT COUNT(*) FROM known_entities')
     # if cursor.fetchone()[0] == 0:

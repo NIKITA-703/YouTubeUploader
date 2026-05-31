@@ -9,6 +9,7 @@ const youtubeChannelBadgeEl = document.getElementById("youtube_channel_badge");
 const youtubeChannelTriggerEl = document.getElementById("youtube_channel_trigger");
 const youtubeChannelValueEl = document.getElementById("youtube_channel_value");
 const youtubeChannelMenuEl = document.getElementById("youtube_channel_menu");
+const youtubeChannelHelpEl = document.getElementById("youtube_channel_help");
 
 const fillBtn = document.getElementById("fill_btn");
 const clearBtn = document.getElementById("clear_btn");
@@ -67,6 +68,7 @@ let localPreviewUrl = null;
 let uiBusy = false;
 let calendarDutyStates = new Map();
 let calendarDutyReqSeq = 0;
+let channelAccessReqSeq = 0;
 
 const backendActionButtons = [
   fillBtn,
@@ -129,6 +131,16 @@ function getYoutubeChannelOptionButtons() {
   return Array.from(document.querySelectorAll(".channel-picker__option"));
 }
 
+function getYoutubeChannelFrameEl() {
+  return document.querySelector(".channel-picker__frame");
+}
+
+function getYoutubeChannelTitleById(channelId) {
+  if (!youtubeChannelEl) return "";
+  const option = Array.from(youtubeChannelEl.options).find((item) => item.value === String(channelId || "").trim());
+  return String(option?.dataset?.channelTitle || option?.textContent || "").trim();
+}
+
 function getSelectedYoutubeChannelTitle() {
   if (!youtubeChannelEl) return "";
   const option = youtubeChannelEl.options[youtubeChannelEl.selectedIndex];
@@ -150,6 +162,16 @@ function syncSelectedYoutubeChannelUi() {
     optionBtn.classList.toggle("is-active", isActive);
     optionBtn.setAttribute("aria-selected", isActive ? "true" : "false");
     optionBtn.style.order = isActive ? "-1" : String(Number(optionBtn.dataset.optionIndex || "0") + 1);
+    const markEl = optionBtn.querySelector(".channel-picker__option-mark");
+    if (markEl) {
+      if (optionBtn.classList.contains("is-disabled")) {
+        markEl.textContent = "Недоступен";
+      } else if (isActive) {
+        markEl.textContent = "Активный";
+      } else {
+        markEl.textContent = "Доступен";
+      }
+    }
   }
 }
 
@@ -171,6 +193,109 @@ function toggleYoutubeChannelMenu() {
     return;
   }
   closeYoutubeChannelMenu();
+}
+
+function formatDayOnly(isoDate) {
+  try {
+    return new Date(`${isoDate}T00:00:00`).toLocaleDateString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return isoDate;
+  }
+}
+
+function getPublishDateForAccess() {
+  return String(publishEl?.value || "").trim();
+}
+
+function applyChannelAccess(payload) {
+  if (!youtubeChannelEl) return;
+
+  const frameEl = getYoutubeChannelFrameEl();
+  const allowed = new Set(Array.isArray(payload?.allowed_channel_ids) ? payload.allowed_channel_ids.map((value) => String(value)) : []);
+  const optionButtons = getYoutubeChannelOptionButtons();
+  const options = Array.from(youtubeChannelEl.options);
+
+  for (const option of options) {
+    const optionAllowed = allowed.has(String(option.value || ""));
+    option.disabled = !optionAllowed;
+
+    const button = optionButtons.find((item) => item.dataset.channelId === String(option.value || ""));
+    if (!button) continue;
+    button.disabled = !optionAllowed;
+    button.classList.toggle("is-disabled", !optionAllowed);
+    button.setAttribute("aria-disabled", optionAllowed ? "false" : "true");
+
+    const markEl = button.querySelector(".channel-picker__option-mark");
+    const isSelected = String(option.value || "") === String(youtubeChannelEl.value || "");
+    if (markEl) {
+      if (!optionAllowed) {
+        markEl.textContent = "Недоступен";
+      } else if (isSelected) {
+        markEl.textContent = "Активный";
+      } else {
+        markEl.textContent = "Доступен";
+      }
+    }
+  }
+
+  const firstAllowed = options.find((option) => allowed.has(String(option.value || "")));
+  if (!allowed.size) {
+    youtubeChannelEl.value = "";
+  } else if (!allowed.has(String(youtubeChannelEl.value || "")) && firstAllowed) {
+    youtubeChannelEl.value = firstAllowed.value;
+  }
+
+  const hasAnyAccess = allowed.size > 0;
+  if (youtubeChannelTriggerEl) {
+    youtubeChannelTriggerEl.disabled = !hasAnyAccess;
+  }
+  if (!hasAnyAccess) {
+    closeYoutubeChannelMenu();
+  }
+  frameEl?.classList.toggle("is-locked", allowed.size === 1);
+  frameEl?.classList.toggle("has-no-access", allowed.size === 0);
+
+  if (youtubeChannelHelpEl) {
+    if (!allowed.size) {
+      youtubeChannelHelpEl.textContent = "На выбранную дату у тебя нет активного слота. Выбери свой день публикации.";
+    } else if (allowed.size === 1) {
+      youtubeChannelHelpEl.textContent = `На ${formatDayOnly(payload?.publish_day || "")} доступен только один канал — блок можно раскрыть, но выбор ограничен логикой расписания.`;
+    } else {
+      youtubeChannelHelpEl.textContent = `На ${formatDayOnly(payload?.publish_day || "")} доступны несколько каналов — можно выбрать нужный.`;
+    }
+  }
+
+  syncSelectedYoutubeChannelUi();
+  persistSelectedYoutubeChannel();
+  syncCreateVideoHref();
+}
+
+async function refreshChannelAccess() {
+  if (!youtubeChannelEl) return;
+  const reqId = ++channelAccessReqSeq;
+  try {
+    const params = new URLSearchParams();
+    const publishDtLocal = getPublishDateForAccess();
+    if (publishDtLocal) {
+      params.set("publish_dt_local", publishDtLocal);
+    }
+    const currentChannelId = String(youtubeChannelEl.value || "").trim();
+    if (currentChannelId) {
+      params.set("channel_id", currentChannelId);
+    }
+
+    const res = await fetch(`/api/channel_access?${params.toString()}`);
+    const parsed = await safeJson(res);
+    if (!parsed.ok || !parsed.data) return;
+    if (reqId !== channelAccessReqSeq) return;
+    applyChannelAccess(parsed.data);
+  } catch {
+    // ignore access refresh failures in UI
+  }
 }
 
 function openUploadConfirmModal({ title, channelTitle }) {
@@ -832,12 +957,23 @@ function dateToIsoLocal(dateObj) {
 }
 
 function applyDutyDayClass(dayElem) {
-  dayElem.classList.remove("duty-uploaded", "duty-missed");
+  dayElem.classList.remove(
+    "duty-uploaded",
+    "duty-scheduled",
+    "duty-replacement",
+    "duty-replacement-uploaded",
+    "duty-past",
+    "duty-replacement-past"
+  );
   if (!dayElem?.dateObj) return;
   const iso = dateToIsoLocal(dayElem.dateObj);
   const state = calendarDutyStates.get(iso);
   if (state === "uploaded") dayElem.classList.add("duty-uploaded");
-  if (state === "missed") dayElem.classList.add("duty-missed");
+  if (state === "scheduled") dayElem.classList.add("duty-scheduled");
+  if (state === "replacement") dayElem.classList.add("duty-replacement");
+  if (state === "replacement_uploaded") dayElem.classList.add("duty-replacement-uploaded");
+  if (state === "past") dayElem.classList.add("duty-past");
+  if (state === "replacement_past") dayElem.classList.add("duty-replacement-past");
 }
 
 async function loadDutyCalendarStatus(fpInstance) {
@@ -907,6 +1043,9 @@ function initPublishPicker() {
     },
     onYearChange(selectedDates, dateStr, instance) {
       loadDutyCalendarStatus(instance);
+    },
+    onChange() {
+      refreshChannelAccess();
     },
   });
 }
@@ -999,6 +1138,10 @@ uploadBtn?.addEventListener("click", async () => {
 
     const bpmValue = normalizeAndValidateBpm(bpmEl?.value || "");
     if (bpmEl) bpmEl.value = bpmValue;
+    const selectedChannelId = String(youtubeChannelEl?.value || "").trim();
+    if (!selectedChannelId) {
+      throw new Error("На выбранную дату у тебя нет доступного канала для загрузки");
+    }
 
     const channelTitle = getSelectedYoutubeChannelTitle();
     const accepted = await openUploadConfirmModal({ title, channelTitle });
@@ -1024,7 +1167,7 @@ uploadBtn?.addEventListener("click", async () => {
     fd.append("publish_dt_local", publishEl?.value || "");
     fd.append("bpm", bpmValue);
     fd.append("key", keyEl?.value || "");
-    fd.append("channel_id", String(youtubeChannelEl?.value || "").trim());
+    fd.append("channel_id", selectedChannelId);
 
     if (previewFileEl?.files && previewFileEl.files.length > 0) {
       fd.append("preview_file", previewFileEl.files[0]);
@@ -1175,10 +1318,19 @@ document.addEventListener("DOMContentLoaded", () => {
     loadOpsLogs().catch(() => {});
   }
   initPublishPicker();
+  refreshChannelAccess().catch(() => {});
 
   if (titleEl) {
     titleEl.addEventListener("input", syncCreateVideoHref);
   }
+
+  publishEl?.addEventListener("change", () => {
+    refreshChannelAccess().catch(() => {});
+  });
+
+  publishEl?.addEventListener("input", () => {
+    refreshChannelAccess().catch(() => {});
+  });
 
   youtubeChannelTriggerEl?.addEventListener("click", (event) => {
     event.preventDefault();

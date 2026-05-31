@@ -13,6 +13,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.database import init_db
+from app.weekly_schedule import ensure_schedule_bootstrap
 from app.web.common import mount_static, PREVIEW_DIR, WEB_TMP_DIR
 from app.web import pages, api, auth
 from app.web.telegram_bot import start_reminder_service, stop_reminder_service
@@ -34,22 +35,28 @@ def _env_flag(name: str, default: bool = False) -> bool:
 async def lifespan(app: FastAPI):
     print("--- SERVER STARTING ---")
     dev_mode = _env_flag("DEVMODE", default=_env_flag("DEV_MODE", default=False))
-    tg_enabled = _env_flag("TELEGRAM_REMINDER_ENABLED", default=not dev_mode)
+    tg_bot_enabled = _env_flag(
+        "TELEGRAM_BOT_ENABLED",
+        default=bool((os.getenv("TELEGRAM_BOT_TOKEN", "") or "").strip()) and not dev_mode,
+    )
+    tg_reminders_enabled = _env_flag("TELEGRAM_REMINDER_ENABLED", default=False)
     print(f"--- MODE: {'DEV' if dev_mode else 'PROD'} ---")
-    print(f"--- TELEGRAM_REMINDER_ENABLED: {tg_enabled} ---")
+    print(f"--- TELEGRAM_BOT_ENABLED: {tg_bot_enabled} ---")
+    print(f"--- TELEGRAM_REMINDER_ENABLED: {tg_reminders_enabled} ---")
     print(f"--- PREVIEW_DIR: {PREVIEW_DIR} ---")
     print(f"--- WEB_TMP_DIR: {WEB_TMP_DIR} ---")
     try:
         init_db()
+        ensure_schedule_bootstrap()
         print("--- DATABASE READY ---")
-        if tg_enabled:
-            await start_reminder_service()
+        if tg_bot_enabled:
+            await start_reminder_service(enable_reminders=tg_reminders_enabled)
         else:
-            print("--> [TELEGRAM] Reminder service disabled by TELEGRAM_REMINDER_ENABLED")
+            print("--> [TELEGRAM] Bot service disabled by TELEGRAM_BOT_ENABLED")
     except Exception as e:
         print(f"--- DATABASE ERROR: {e} ---")
     yield
-    if tg_enabled:
+    if tg_bot_enabled:
         await stop_reminder_service()
     print("--- SERVER SHUTTING DOWN ---")
 

@@ -13,9 +13,8 @@ import zipfile
 from pathlib import Path
 from pathlib import PurePosixPath
 from datetime import datetime, timezone, timedelta
-from calendar import monthrange
 
-from app.web.telegram_bot import send_upload_report, WEEKDAY_DUTY
+from app.web.telegram_bot import send_upload_report
 
 from typing import Optional, Any
 from fastapi import BackgroundTasks
@@ -33,8 +32,6 @@ from app.database import (
     add_operation_log,
     get_recent_operation_logs,
     mark_user_upload_on_day,
-    has_user_upload_on_day,
-    has_legacy_video_upload_on_day,
 )
 from app.media.preview_fetch import download_thumbnail_for_beat
 from app.montage.models import MontageRequest
@@ -52,7 +49,13 @@ from app.web.utils import normalize_hashtags, normalize_seo_tags, parse_dt_local
 from app.web.youtube_client import get_youtube_client
 from app.config import load_config
 from app.youtube import authenticate_youtube
-from app.youtube.channels import get_channel_playlist_title_map, get_youtube_channel
+from app.youtube.channels import get_channel_playlist_title_map, get_public_youtube_channels, get_youtube_channel
+from app.weekly_schedule import (
+    current_msk_date,
+    ensure_schedule_bootstrap,
+    get_allowed_channel_ids_for_user_on_day,
+    get_calendar_states_for_user_month,
+)
 
 from datetime import date
 
@@ -837,27 +840,35 @@ def _validate_bpm_or_raise(bpm_raw: str) -> str:
         raise HTTPException(status_code=400, detail="BPM должен быть в диапазоне 0..250")
     return str(value)
 
-def _dedupe_preserve_order(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for v in values:
-        val = (v or "").strip().lower()
-        if not val or val in seen:
-            continue
-        seen.add(val)
-        out.append(val)
-    return out
+def _resolve_publish_day_msk(publish_dt_local: str) -> date:
+    raw = (publish_dt_local or "").strip()
+    if not raw:
+        return current_msk_date()
+    try:
+        return datetime.fromisoformat(raw).date()
+    except Exception as error:
+        raise HTTPException(status_code=400, detail="Некорректная дата публикации") from error
 
 
-def _find_duty_member_for_app_user(app_username: str) -> tuple[int | None, dict | None]:
-    normalized = (app_username or "").strip().lower()
-    if not normalized:
-        return None, None
-    for weekday, member in WEEKDAY_DUTY.items():
-        app_name = (member.get("app_username") or member.get("username") or "").strip().lower()
-        if app_name == normalized:
-            return weekday, member
-    return None, None
+def _build_channel_access_payload(username: str, publish_day: date) -> dict[str, Any]:
+    ensure_schedule_bootstrap()
+    allowed_channel_ids = set(get_allowed_channel_ids_for_user_on_day(username, publish_day))
+    channels = get_public_youtube_channels()
+    channels_payload = []
+    for channel in channels:
+        channel_id = str(channel["channel_id"])
+        channels_payload.append(
+            {
+                **channel,
+                "is_allowed": channel_id in allowed_channel_ids,
+            }
+        )
+    return {
+        "publish_day": publish_day.isoformat(),
+        "allowed_channel_ids": [item["channel_id"] for item in channels_payload if item["is_allowed"]],
+        "has_any_access": any(item["is_allowed"] for item in channels_payload),
+        "channels": channels_payload,
+    }
 
 
 def _day_msk_from_publish_at_utc(publish_at_utc: str | None) -> date | None:
@@ -1073,45 +1084,22 @@ def api_calendar_duty_status(request: Request, year: int, month: int):
     if month < 1 or month > 12:
         raise HTTPException(status_code=400, detail="Invalid month")
 
-    duty_weekday, duty_member = _find_duty_member_for_app_user(username)
-    if duty_weekday is None or duty_member is None:
-        return {"duty_weekday": None, "days": {}}
-
-    producer_username = (duty_member.get("username") or "").strip().lower()
-    usernames_to_check = _dedupe_preserve_order([username, producer_username])
-
-    msk_tz = timezone(timedelta(hours=3))
-    today_msk = datetime.now(msk_tz).date()
-    _, max_day = monthrange(year, month)
-
-    day_states: dict[str, str] = {}
-    for day_num in range(1, max_day + 1):
-        day_obj = date(year, month, day_num)
-        if day_obj.weekday() != duty_weekday:
-            continue
-        # Подсвечиваем только актуальные дни: сегодня и будущие.
-        # Прошедшие дни в календаре не отмечаем.
-        if day_obj < today_msk:
-            continue
-
-        uploaded = False
-        for uname in usernames_to_check:
-            if has_user_upload_on_day(uname, day_obj):
-                uploaded = True
-                break
-
-        if not uploaded:
-            for uname in usernames_to_check:
-                if has_legacy_video_upload_on_day(uname, day_obj):
-                    uploaded = True
-                    break
-
-        day_states[day_obj.isoformat()] = "uploaded" if uploaded else "missed"
-
+    ensure_schedule_bootstrap()
     return {
-        "duty_weekday": duty_weekday,
-        "days": day_states,
+        "days": get_calendar_states_for_user_month(username, year, month),
     }
+
+
+@router.get("/channel_access")
+def api_channel_access(request: Request, publish_dt_local: str = ""):
+    username = (request.session.get("username") or "").strip().lower()
+    if not username:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    publish_day = _resolve_publish_day_msk(publish_dt_local)
+    payload = _build_channel_access_payload(username, publish_day)
+    payload["requested_channel_id"] = (request.query_params.get("channel_id") or "").strip()
+    return payload
 
 
 @router.post("/gen_tags")
@@ -1316,6 +1304,22 @@ def api_upload(
             selected_channel = get_youtube_channel((channel_id or "").strip() or None)
         except KeyError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+        publish_day_msk = _resolve_publish_day_msk(publish_dt_local)
+        ensure_schedule_bootstrap()
+        allowed_channel_ids = get_allowed_channel_ids_for_user_on_day(username, publish_day_msk)
+        if not allowed_channel_ids:
+            raise HTTPException(
+                status_code=403,
+                detail=f"На дату {publish_day_msk.strftime('%d.%m.%Y')} у тебя нет активного слота для загрузки.",
+            )
+        if selected_channel.channel_id not in allowed_channel_ids:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Канал «{selected_channel.title}» недоступен на "
+                    f"{publish_day_msk.strftime('%d.%m.%Y')} для твоего расписания."
+                ),
+            )
 
         upload_id = uuid.uuid4().hex
         safe_server_video_name = Path((server_video_filename or "").strip()).name
@@ -1437,6 +1441,7 @@ def api_upload(
                     nickname=nickname,
                     publish_at_utc=result.publish_at,
                     video_url=video_url,
+                    channel_title=selected_channel.title,
                 )
             except Exception as tg_err:
                 print(f"--> [TG ERROR] Не удалось поставить задачу отчёта: {tg_err}")

@@ -1,156 +1,182 @@
-﻿import os
+from __future__ import annotations
+
 import asyncio
-import json
+import html
+import os
+from datetime import datetime, timedelta, timezone, date
+
 from aiogram import Bot, types
-from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
-from app.database import (
-    has_user_upload_on_day,
-    has_legacy_video_upload_on_day,
-    mark_user_upload_on_day,
-    mark_manual_stop_on_day,
-    is_manual_stop_on_day,
+from app.weekly_schedule import (
+    REQUEST_ACCEPTED,
+    REQUEST_DECLINED,
+    REQUEST_PENDING,
+    accept_replacement_request,
+    bind_user_telegram_identity,
+    build_actual_schedule_text,
+    build_base_schedule_text,
+    build_user_requests_text,
+    create_replacement_request,
+    current_msk_date,
+    decline_replacement_request,
+    ensure_schedule_bootstrap,
+    format_day_label,
+    get_active_user,
+    get_base_slots_for_user_current_week,
+    get_replacement_request,
+    get_user_by_telegram_identity,
+    list_active_users,
+    list_swap_candidates_for_slot,
 )
+from app.youtube.channels import get_youtube_channel
 
 load_dotenv()
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+CHAT_ID = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
 THREAD_ID_RAW = os.getenv("TELEGRAM_CHAT_THREAD_ID", "11")
 THREAD_ID = int(THREAD_ID_RAW) if THREAD_ID_RAW and THREAD_ID_RAW.isdigit() else None
 
-bot = Bot(token=TOKEN, parse_mode=types.ParseMode.HTML)
 MSK = timezone(timedelta(hours=3))
 
-REMINDER_WINDOW_START_HOUR = 10
-REMINDER_WINDOW_END_HOUR = 24
-REMINDER_EVERY_HOURS_BEFORE_DEADLINE = 2
-REMINDER_PREDEADLINE_SLOT = (20, 30)
-REMINDER_POSTDEADLINE_MINUTES = (0, 30)
-REMINDER_DEADLINE_HOUR = 21
-UPLOAD_LINK = "https://kellmibeatproduction.ppn.abrdns.com/"
-TEST_DELAY_SECONDS = 10
-TEST_CHAT_ID = 792336120
-TEST_USERNAME = "whallythekidd"
+bot = Bot(token=TOKEN, parse_mode=types.ParseMode.HTML) if TOKEN else None
 
-_reminder_loop_task: asyncio.Task | None = None
-_callback_loop_task: asyncio.Task | None = None
+_bot_loop_task: asyncio.Task | None = None
 _stop_event = asyncio.Event()
 _updates_offset: int | None = None
-
-_sent_cache: set[tuple[str, str, int, int]] = set()
-_ack_cache: dict[tuple[str, str], datetime] = {}
-_manual_stop_cache: set[tuple[str, str]] = set()
-_kellmi_control_sent: set[tuple[str, str]] = set()
-
-# 0=Понедельник ... 6=Воскресенье
-DEFAULT_WEEKDAY_DUTY = {
-    0: {"username": "kellmi", "app_username": "kellmipenis", "display_name": "Kellmi", "tg": "http://t.me/k3lm1", "chat_id": 6805614227, "tg_user_id": 6805614227},
-    1: {"username": "whallythekidd", "display_name": "whallythekidd", "tg": "https://t.me/whallythekidd", "chat_id": 1189312079, "tg_user_id": 1189312079},
-    2: {"username": "plak1!", "display_name": "plak1!", "tg": "https://t.me/plak1rplak1", "chat_id": 1201608748, "tg_user_id": 1201608748},
-    3: {"username": "lvbuba", "display_name": "LVBUBA", "tg": "https://t.me/lvbuba_beats", "chat_id": 7726006922, "tg_user_id": 7726006922},
-    4: {"username": "spacech1ld", "display_name": "spacech1ld", "tg": "https://t.me/twentyfive_mp3", "chat_id": 5311689474, "tg_user_id": 5311689474},
-    5: {"username": "sunly", "display_name": "sunly", "tg": "https://t.me/prodsunly", "chat_id": 8444179977, "tg_user_id": 8444179977},
-    6: {"username": "nootropics", "display_name": "nootropics", "tg": "https://t.me/festry666", "chat_id": 909353633, "tg_user_id": 909353633},
-}
+_reminders_enabled = False
+_chat_view_message_ids: dict[int, int] = {}
 
 
-def _to_int_or_none(value) -> int | None:
-    if value in (None, "", "None"):
+def _escape(value: str | None) -> str:
+    return html.escape(str(value or ""))
+
+
+def _normalize_key(value: str | None) -> str:
+    return (value or "").strip().lstrip("@").lower()
+
+
+def _safe_chat_id(user: dict | None) -> int | None:
+    if not user:
         return None
+    raw = user.get("telegram_chat_id") or user.get("telegram_user_id")
     try:
-        return int(value)
+        return int(raw) if raw not in (None, "") else None
     except Exception:
         return None
 
 
-def _normalize_member_config(raw: dict) -> dict:
-    return {
-        "username": str(raw.get("username", "")).strip(),
-        "app_username": str(raw.get("app_username") or "").strip() or None,
-        "display_name": str(raw.get("display_name") or "").strip() or None,
-        "tg": str(raw.get("tg") or "").strip() or None,
-        "chat_id": _to_int_or_none(raw.get("chat_id")),
-        "tg_user_id": _to_int_or_none(raw.get("tg_user_id")),
-    }
+def _display_name(user: dict | None, fallback: str = "") -> str:
+    if not user:
+        return fallback
+    return str(user.get("display_name") or user.get("username") or fallback).strip() or fallback
 
 
-def _load_weekday_duty() -> dict[int, dict]:
-    """
-    Настройка из .env:
-    TELEGRAM_WEEKDAY_DUTY_JSON='{"0": {...}, "1": {...}, ..., "6": {...}}'
-    """
-    raw = os.getenv("TELEGRAM_WEEKDAY_DUTY_JSON", "").strip()
-    if not raw:
-        return DEFAULT_WEEKDAY_DUTY
-
-    try:
-        data = json.loads(raw)
-    except Exception as e:
-        print(f"--> [TELEGRAM DUTY ERROR] invalid TELEGRAM_WEEKDAY_DUTY_JSON: {e}")
-        return DEFAULT_WEEKDAY_DUTY
-
-    if not isinstance(data, dict):
-        print("--> [TELEGRAM DUTY ERROR] TELEGRAM_WEEKDAY_DUTY_JSON is not an object")
-        return DEFAULT_WEEKDAY_DUTY
-
-    result: dict[int, dict] = {}
-    for day in range(7):
-        src = data.get(str(day), data.get(day))
-        if not isinstance(src, dict):
-            print(f"--> [TELEGRAM DUTY ERROR] Missing/invalid day={day}, fallback to default")
-            return DEFAULT_WEEKDAY_DUTY
-        member = _normalize_member_config(src)
-        if not member["username"]:
-            print(f"--> [TELEGRAM DUTY ERROR] Empty username for day={day}, fallback to default")
-            return DEFAULT_WEEKDAY_DUTY
-        result[day] = member
-
-    print("--> [TELEGRAM DUTY] Loaded from TELEGRAM_WEEKDAY_DUTY_JSON")
-    return result
+def _main_menu_keyboard() -> types.InlineKeyboardMarkup:
+    buttons = [
+        types.InlineKeyboardButton(text="🔄 Запросить замену", callback_data="menu:request"),
+        types.InlineKeyboardButton(text="📅 Базовое расписание", callback_data="menu:base"),
+        types.InlineKeyboardButton(text="🗓 Актуальное расписание", callback_data="menu:actual"),
+        types.InlineKeyboardButton(text="📨 Мои запросы", callback_data="menu:mine"),
+    ]
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=_split_buttons_two_columns(buttons)
+    )
 
 
-WEEKDAY_DUTY = _load_weekday_duty()
-KELLMI_USERNAME = os.getenv("TELEGRAM_KELLMI_USERNAME", "kellmi").strip() or "kellmi"
+def _menu_back_keyboard() -> types.InlineKeyboardMarkup:
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [types.InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="menu:root")],
+        ]
+    )
 
 
-def _dedupe_preserve_order(items: list[str]) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for x in items:
-        if x in seen:
-            continue
-        seen.add(x)
-        out.append(x)
-    return out
+def _split_buttons_two_columns(
+    buttons: list[types.InlineKeyboardButton],
+) -> list[list[types.InlineKeyboardButton]]:
+    rows: list[list[types.InlineKeyboardButton]] = []
+    for index in range(0, len(buttons), 2):
+        rows.append(buttons[index:index + 2])
+    return rows
 
 
-def _load_site_credentials() -> dict[str, dict[str, str]]:
-    """
-    ????????? ??????? ?? .env:
-    TELEGRAM_SITE_CREDENTIALS_JSON='{"username":{"login":"...","password":"..."}}'
-    """
-    raw = os.getenv("TELEGRAM_SITE_CREDENTIALS_JSON", "").strip()
-    if not raw:
-        return {}
-    try:
-        data = json.loads(raw)
-    except Exception as e:
-        print(f"--> [TELEGRAM CREDS ERROR] invalid TELEGRAM_SITE_CREDENTIALS_JSON: {e}")
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    return data
+def _request_action_keyboard(request_id: int) -> types.InlineKeyboardMarkup:
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="✅ Принять", callback_data=f"swap_accept:{request_id}"),
+                types.InlineKeyboardButton(text="❌ Отказать", callback_data=f"swap_decline:{request_id}"),
+            ]
+        ]
+    )
 
 
-SITE_CREDENTIALS = _load_site_credentials()
+async def _send_text(
+    chat_id: int | str,
+    text: str,
+    *,
+    reply_markup: types.InlineKeyboardMarkup | None = None,
+    disable_web_page_preview: bool = True,
+) -> None:
+    if not bot:
+        return
+    await bot.send_message(
+        chat_id=str(chat_id),
+        text=text,
+        reply_markup=reply_markup,
+        disable_web_page_preview=disable_web_page_preview,
+    )
 
 
-async def send_upload_report(nickname: str, publish_at_utc: str, video_url: str):
+async def _upsert_view_message(
+    chat_id: int | str,
+    text: str,
+    *,
+    reply_markup: types.InlineKeyboardMarkup | None = None,
+    source_message: types.Message | None = None,
+) -> None:
+    if not bot:
+        return
+
+    numeric_chat_id = int(chat_id)
+    target_message_id = source_message.message_id if source_message else _chat_view_message_ids.get(numeric_chat_id)
+
+    if target_message_id is not None:
+        try:
+            await bot.edit_message_text(
+                chat_id=str(chat_id),
+                message_id=int(target_message_id),
+                text=text,
+                reply_markup=reply_markup,
+                disable_web_page_preview=True,
+            )
+            _chat_view_message_ids[numeric_chat_id] = int(target_message_id)
+            return
+        except Exception:
+            pass
+
+    sent = await bot.send_message(
+        chat_id=str(chat_id),
+        text=text,
+        reply_markup=reply_markup,
+        disable_web_page_preview=True,
+    )
+    _chat_view_message_ids[numeric_chat_id] = int(sent.message_id)
+
+
+async def send_upload_report(
+    nickname: str,
+    publish_at_utc: str,
+    video_url: str,
+    channel_title: str | None = None,
+):
     """
     Отправляет отчет о выложенном видео в общий чат/тред.
     """
+    if not bot or not CHAT_ID:
+        return
     try:
         if publish_at_utc:
             dt_utc = datetime.fromisoformat(publish_at_utc.replace("Z", "+00:00"))
@@ -160,10 +186,15 @@ async def send_upload_report(nickname: str, publish_at_utc: str, video_url: str)
             dt_now_msk = datetime.now(timezone.utc) + timedelta(hours=3)
             time_str = dt_now_msk.strftime("%d.%m %H:%M") + " (Сразу)"
 
+        channel_line = ""
+        if channel_title:
+            channel_line = f"📺 <b>Канал:</b> <code>{_escape(channel_title)}</code>\n"
+
         message_text = (
             "🎬 <b>НОВОЕ ВИДЕО НА КАНАЛЕ</b>\n\n"
-            f"👤 <b>Битмарь:</b> <code>{nickname}</code>\n"
-            f"📅 <b>Дата публикации:</b> <code>{time_str}</code>\n\n"
+            f"👤 <b>Битмарь:</b> <code>{_escape(nickname)}</code>\n"
+            f"{channel_line}"
+            f"📅 <b>Дата публикации:</b> <code>{_escape(time_str)}</code>\n\n"
             f"🔗 <b>Ссылка:</b> {video_url}\n\n"
             "<i>С любовью: YouTube Uploader ❤️</i>"
         )
@@ -174,411 +205,451 @@ async def send_upload_report(nickname: str, publish_at_utc: str, video_url: str)
         print(f"--> [TELEGRAM ERROR] Ошибка: {e}")
 
 
-def _clean_tg_label(raw_tg: str | None, fallback: str) -> str:
-    tg = (raw_tg or "").strip()
-    if tg.startswith("https://t.me/") or tg.startswith("http://t.me/"):
-        tg = "@" + tg.rsplit("/", 1)[-1]
-    return tg or fallback
+def _match_user_by_hints(from_user: types.User | None) -> dict | None:
+    if not from_user:
+        return None
+    hints = {
+        _normalize_key(from_user.username),
+        _normalize_key(from_user.full_name),
+        _normalize_key(from_user.first_name),
+        _normalize_key(from_user.last_name),
+    }
+    hints.discard("")
+    if not hints:
+        return None
 
+    matches: list[dict] = []
+    for user in list_active_users():
+        username_key = _normalize_key(user.get("username"))
+        display_key = _normalize_key(user.get("display_name"))
+        tg_key = _normalize_key(user.get("telegram_username"))
+        if any(hint in {username_key, display_key, tg_key} for hint in hints):
+            matches.append(user)
 
-def _get_member_by_username(username: str) -> dict | None:
-    for member in WEEKDAY_DUTY.values():
-        if member.get("username") == username:
-            return member
+    unique = {str(item["username"]).lower(): item for item in matches}
+    if len(unique) == 1:
+        return next(iter(unique.values()))
     return None
 
 
-def _get_member_app_username(member: dict) -> str:
-    return (member.get("app_username") or member.get("username") or "").strip()
-
-
-def _get_kellmi_member() -> dict | None:
-    return _get_member_by_username(KELLMI_USERNAME)
-
-
-def _format_time_left(deadline: datetime, now: datetime) -> str:
-    if now >= deadline:
-        return "0 ч. 0 мин."
-    delta = deadline - now
-    total_minutes = int(delta.total_seconds() // 60)
-    hours = total_minutes // 60
-    minutes = total_minutes % 60
-    return f"{hours} ч. {minutes} мин."
-
-
-def _is_reminder_slot(msk_now: datetime) -> bool:
-    if msk_now.hour < REMINDER_WINDOW_START_HOUR or msk_now.hour >= REMINDER_WINDOW_END_HOUR:
-        return False
-
-    # С 10:00 до дедлайна — каждые 2 часа (10:00, 12:00, 14:00, 16:00, 18:00, 20:00).
-    if msk_now.minute == 0 and msk_now.hour < REMINDER_DEADLINE_HOUR:
-        if (msk_now.hour - REMINDER_WINDOW_START_HOUR) % REMINDER_EVERY_HOURS_BEFORE_DEADLINE == 0:
-            return True
-
-    # Отдельный слот перед дедлайном.
-    if (msk_now.hour, msk_now.minute) == REMINDER_PREDEADLINE_SLOT:
-        return True
-
-    # После дедлайна — каждые 30 минут до полуночи (21:00..23:30).
-    if msk_now.hour >= REMINDER_DEADLINE_HOUR and msk_now.minute in REMINDER_POSTDEADLINE_MINUTES:
-        return True
-
-    return False
-
-
-def _cleanup_day_caches(today_iso: str):
-    stale_sent = [k for k in _sent_cache if k[0] != today_iso]
-    for key in stale_sent:
-        _sent_cache.discard(key)
-
-    stale_ack = [k for k in _ack_cache if k[0] != today_iso]
-    for key in stale_ack:
-        _ack_cache.pop(key, None)
-
-    stale_stop = [k for k in _manual_stop_cache if k[0] != today_iso]
-    for key in stale_stop:
-        _manual_stop_cache.discard(key)
-
-    stale_ctrl = [k for k in _kellmi_control_sent if k[0] != today_iso]
-    for key in stale_ctrl:
-        _kellmi_control_sent.discard(key)
-
-
-async def _send_reminder(member: dict, msk_now: datetime) -> bool:
-    username = member["username"]
-    target_chat_id = member.get("chat_id")
-    if not target_chat_id:
-        print(f"--> [TELEGRAM REMINDER SKIP] No personal chat_id for {username}")
-        return False
-
-    deadline = msk_now.replace(hour=REMINDER_DEADLINE_HOUR, minute=0, second=0, microsecond=0)
-    left_str = _format_time_left(deadline, msk_now)
-    creds = SITE_CREDENTIALS.get(username, {})
-    login_str = creds.get("login", username)
-    password_str = creds.get("password", "не задан")
-
-    callback_data = f"ack:{username}:{msk_now.date().isoformat()}"
-    keyboard = types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [types.InlineKeyboardButton(text="✅ Принял, увидел", callback_data=callback_data)]
-        ]
-    )
-
-    text = (
-        "⏰ <b>Напоминание о публикации</b>\n\n"
-        f"🕘 Дедлайн: <b>{REMINDER_DEADLINE_HOUR}:00 МСК</b>\n"
-        f"⏳ До дедлайна осталось примерно: <b>{left_str}</b>.\n\n"        
-        f"<a href=\"{UPLOAD_LINK}\">Загрузи сегодня видео</a>\n\n"
-        f"Логин: <code>{login_str}</code>\n"
-        f"Пароль: <code>{password_str}</code>"
-    )
-
-    try:
-        await bot.send_message(
-            chat_id=str(target_chat_id),
-            text=text,
-            reply_markup=keyboard,
-            disable_web_page_preview=True,
-        )
-        print(
-            f"--> [TELEGRAM REMINDER SENT] user={username} chat_id={target_chat_id} "
-            f"time_msk={msk_now.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        return True
-    except Exception as e:
-        print(
-            f"--> [TELEGRAM REMINDER FAILED] user={username} chat_id={target_chat_id} "
-            f"error={e}"
-        )
-        return False
-
-
-async def _send_kellmi_stop_control(member: dict, day_iso: str):
-    kellmi = _get_kellmi_member()
-    kellmi_chat_id = (kellmi or {}).get("chat_id")
-    username = member["username"]
-
-    if not kellmi_chat_id:
-        print("--> [TELEGRAM KELLMI CONTROL SKIP] Kellmi chat_id is not set")
-        return
-
-    key = (day_iso, username)
-    if key in _kellmi_control_sent:
-        print(f"--> [TELEGRAM KELLMI CONTROL SKIP] Already sent for {username} {day_iso}")
-        return
-
-    stop_cb = f"stop:{username}:{day_iso}"
-    keyboard = types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [types.InlineKeyboardButton(text="❌ прекратить напоминать", callback_data=stop_cb)]
-        ]
-    )
-
-    bitmar_name = member.get("display_name") or username
-    bitmar_tg = _clean_tg_label(member.get("tg"), username)
-
-    await bot.send_message(
-        chat_id=str(kellmi_chat_id),
-        text=(
-            "⚙️ Управление напоминаниями\n\n"
-            f"Битмарь: <b>{bitmar_name}</b>\n"
-            f"TG: {bitmar_tg}\n"
-            f"Дата: <code>{day_iso}</code>"
-        ),
-        reply_markup=keyboard,
-    )
-    print(f"--> [TELEGRAM KELLMI CONTROL SENT] user={username} day={day_iso}")
-    _kellmi_control_sent.add(key)
-
-
-async def _check_and_send_for_slot(msk_now: datetime):
-    member = WEEKDAY_DUTY.get(msk_now.weekday())
-    if not member:
-        print(f"--> [TELEGRAM REMINDER SKIP] No duty member for weekday={msk_now.weekday()}")
-        return
-
-    today = msk_now.date()
-    today_iso = today.isoformat()
-    username = member["username"]
-    print(f"--> [TELEGRAM REMINDER CHECK] user={username} slot={msk_now.strftime('%H:%M')} day={today_iso}")
-
-    sent_key = (today_iso, username, msk_now.hour, msk_now.minute)
-    if sent_key in _sent_cache:
-        print(f"--> [TELEGRAM REMINDER SKIP] Already processed slot for {username}")
-        return
-
-    app_username = _get_member_app_username(member).strip()
-    producer_username = (member.get("username") or "").strip()
-    usernames_to_check = [u for u in _dedupe_preserve_order([app_username, producer_username]) if u]
-
-    has_new_upload_flag = False
-    has_legacy_upload_flag = False
-
-    for uname in usernames_to_check:
-        if has_user_upload_on_day(uname, today):
-            has_new_upload_flag = True
-            break
-
-    for uname in usernames_to_check:
-        if has_legacy_video_upload_on_day(uname, today):
-            has_legacy_upload_flag = True
-            break
-
-    if has_new_upload_flag or has_legacy_upload_flag:
-        if has_legacy_upload_flag and not has_new_upload_flag:
-            # Backfill marker(s) so next checks do not depend on title parsing.
-            for uname in usernames_to_check:
-                mark_user_upload_on_day(username=uname, day_msk=today)
-        print(
-            f"--> [TELEGRAM REMINDER SKIP] Upload exists "
-            f"usernames={usernames_to_check} legacy={has_legacy_upload_flag} day={today_iso}"
-        )
-        _sent_cache.add(sent_key)
-        return
-
-    if (today_iso, username) in _manual_stop_cache or is_manual_stop_on_day(today, username):
-        print(f"--> [TELEGRAM REMINDER SKIP] Stopped manually for {username} day={today_iso}")
-        _manual_stop_cache.add((today_iso, username))
-        _sent_cache.add(sent_key)
-        return
-
-    reminder_sent = await _send_reminder(member=member, msk_now=msk_now)
-    if reminder_sent:
-        await _send_kellmi_stop_control(member=member, day_iso=today_iso)
+def _resolve_known_user(msg_or_cb: types.Message | types.CallbackQuery) -> dict | None:
+    ensure_schedule_bootstrap()
+    if isinstance(msg_or_cb, types.CallbackQuery):
+        from_user = msg_or_cb.from_user
+        chat = msg_or_cb.message.chat if msg_or_cb.message else None
     else:
-        print(f"--> [TELEGRAM REMINDER RESULT] Not sent for {username}")
-    _sent_cache.add(sent_key)
+        from_user = msg_or_cb.from_user
+        chat = msg_or_cb.chat if msg_or_cb.chat else None
+
+    chat_id = chat.id if chat and getattr(chat, "type", "") == "private" else None
+
+    if not from_user:
+        return None
+
+    matched = get_user_by_telegram_identity(
+        telegram_user_id=from_user.id,
+        telegram_chat_id=chat_id,
+        telegram_username=from_user.username,
+    )
+    if not matched:
+        matched = _match_user_by_hints(from_user)
+
+    if not matched:
+        return None
+
+    bind_user_telegram_identity(
+        matched["username"],
+        telegram_user_id=from_user.id,
+        telegram_chat_id=chat_id,
+        telegram_username=from_user.username,
+    )
+    return get_active_user(matched["username"])
 
 
-async def _reminder_loop():
-    last_day_logged: str | None = None
-    while not _stop_event.is_set():
-        try:
-            msk_now = datetime.now(MSK)
-            day_iso = msk_now.date().isoformat()
-            _cleanup_day_caches(day_iso)
-
-            if day_iso != last_day_logged:
-                member = WEEKDAY_DUTY.get(msk_now.weekday())
-                if member:
-                    print(
-                        "--> [TELEGRAM REMINDER PLAN] "
-                        f"day={day_iso} duty={member.get('username')} "
-                        "slots=10:00,12:00,14:00,16:00,18:00,20:00,20:30,21:00,21:30,22:00,22:30,23:00,23:30"
-                    )
-                else:
-                    print(f"--> [TELEGRAM REMINDER PLAN] day={day_iso} no duty member for weekday={msk_now.weekday()}")
-                last_day_logged = day_iso
-
-            if _is_reminder_slot(msk_now):
-                await _check_and_send_for_slot(msk_now)
-                await asyncio.sleep(65)
-                continue
-        except Exception as e:
-            print(f"--> [TELEGRAM REMINDER ERROR] {e}")
-
-        await asyncio.sleep(20)
+async def _send_unknown_user_message(chat_id: int | str) -> None:
+    await _upsert_view_message(chat_id, "Ты не найден в системе.")
 
 
-async def _handle_ack_callback(cb: types.CallbackQuery, username: str, day_iso: str):
-    expected_member = _get_member_by_username(username)
-    expected_user_id = (expected_member or {}).get("tg_user_id")
-    actual_user_id = cb.from_user.id if cb.from_user else None
+def _log_start_probe(from_user: types.User | None, matched_user: dict | None) -> None:
+    username = f"@{from_user.username}" if from_user and from_user.username else "-"
+    full_name = (from_user.full_name or "").strip() if from_user else ""
+    user_id = from_user.id if from_user else "-"
 
-    if not expected_user_id:
-        await bot.answer_callback_query(
-            cb.id,
-            text="ID битмаря не настроен. Подтверждение отключено.",
-            show_alert=True,
+    lines = [
+        f"username={username}",
+        f"name={full_name or '-'}",
+        f"id={user_id}",
+        "",
+    ]
+    if matched_user:
+        lines.append(
+            f"Найден в системе: {_display_name(matched_user, fallback=str(matched_user.get('username') or 'user'))}"
         )
+    else:
+        lines.append("Ты не найден в системе.")
+    print("\n".join(lines))
+
+
+async def _send_menu(
+    chat_id: int | str,
+    user: dict,
+    intro: str | None = None,
+    *,
+    source_message: types.Message | None = None,
+) -> None:
+    display_name = _display_name(user, fallback="битмарь")
+    text = intro or (
+        "🤖 <b>Bot Menu</b>\n\n"
+        f"Привет, <b>{_escape(display_name)}</b>.\n"
+        "Выбери действие ниже."
+    )
+    await _upsert_view_message(chat_id, text, reply_markup=_main_menu_keyboard(), source_message=source_message)
+
+
+def _slot_summary(slot) -> str:
+    channel = get_youtube_channel(slot.channel_id)
+    return f"{format_day_label(slot.slot_date)} • {channel.title}"
+
+
+async def _send_slot_picker(
+    chat_id: int | str,
+    username: str,
+    note: str | None = None,
+    *,
+    source_message: types.Message | None = None,
+) -> None:
+    today = current_msk_date()
+    slots = [
+        slot for slot in get_base_slots_for_user_current_week(username)
+        if slot.slot_date >= today and not slot.is_replacement
+    ]
+    if not slots:
+        text = "На текущую неделю у тебя нет свободных слотов для передачи."
+        await _upsert_view_message(chat_id, text, reply_markup=_menu_back_keyboard(), source_message=source_message)
         return
 
-    if int(actual_user_id) != int(expected_user_id):
-        await bot.answer_callback_query(
-            cb.id,
-            text="Эта кнопка не для тебя. Скоро и за тобой приду",
-            show_alert=True,
+    slot_buttons = [
+        types.InlineKeyboardButton(text=_slot_summary(slot), callback_data=f"swap_slot:{slot.slot_date.isoformat()}")
+        for slot in slots
+    ]
+    keyboard_rows = _split_buttons_two_columns(slot_buttons)
+    keyboard_rows.append([types.InlineKeyboardButton(text="⬅️ Назад", callback_data="menu:root")])
+    text = note or "Выбери день текущей недели, в который тебе нужна замена."
+    await _upsert_view_message(
+        chat_id,
+        text,
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard_rows),
+        source_message=source_message,
+    )
+
+
+async def _send_candidate_picker(
+    chat_id: int | str,
+    owner_username: str,
+    slot_date: date,
+    *,
+    note: str | None = None,
+    source_message: types.Message | None = None,
+) -> None:
+    candidates = list_swap_candidates_for_slot(owner_username, slot_date)
+    if not candidates:
+        text = (
+            f"На {format_day_label(slot_date)} сейчас нет доступных битмарей "
+            "с привязанным Telegram."
         )
+        await _upsert_view_message(chat_id, text, reply_markup=_menu_back_keyboard(), source_message=source_message)
         return
 
-    _ack_cache[(day_iso, username)] = datetime.now(MSK)
-    await bot.answer_callback_query(cb.id, text="Принято ✅")
-
-    kellmi = _get_kellmi_member()
-    kellmi_chat_id = (kellmi or {}).get("chat_id")
-    if kellmi_chat_id:
-        try:
-            clicked_at = datetime.now(MSK).strftime("%d.%m.%Y %H:%M:%S")
-            bitmar_name = (expected_member or {}).get("display_name") or username
-            bitmar_tg = _clean_tg_label((expected_member or {}).get("tg"), username)
-            await bot.send_message(
-                chat_id=str(kellmi_chat_id),
-                text=(
-                    "✅ Подтверждение получено\n\n"
-                    f"Битмарь: <b>{bitmar_name}</b>\n"
-                    f"Username: {bitmar_tg}\n"
-                    f"Время (МСК): <code>{clicked_at}</code>"
-                ),
+    keyboard_rows = []
+    for candidate in candidates:
+        candidate_name = _display_name(candidate, fallback=str(candidate.get("username") or "битмарь"))
+        keyboard_rows.append(
+            types.InlineKeyboardButton(
+                text=candidate_name,
+                callback_data=f"swap_target:{slot_date.isoformat()}:{candidate['username']}",
             )
-        except Exception as notify_err:
-            print(f"--> [TELEGRAM KELLMI NOTIFY ERROR] {notify_err}")
+        )
+    keyboard_rows = _split_buttons_two_columns(keyboard_rows)
+    keyboard_rows.append([types.InlineKeyboardButton(text="⬅️ К выбору дня", callback_data="menu:request")])
+    text = note or f"Выбери, кому отправить запрос на {format_day_label(slot_date)}."
+    await _upsert_view_message(
+        chat_id,
+        text,
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard_rows),
+        source_message=source_message,
+    )
 
+
+async def _send_request_to_target(request_row: dict) -> None:
+    requester = get_active_user(str(request_row["requester_username"]))
+    target = get_active_user(str(request_row["target_username"]))
+    if not requester or not target:
+        raise RuntimeError("Не удалось найти участников запроса")
+
+    target_chat_id = _safe_chat_id(target)
+    if not target_chat_id:
+        raise RuntimeError("У целевого участника не привязан Telegram")
+
+    channel = get_youtube_channel(str(request_row["channel_id"]))
+    requester_name = _display_name(requester, fallback=str(request_row["requester_username"]))
+    slot_day = date.fromisoformat(str(request_row["slot_date"]))
+    text = (
+        "🔄 <b>Новый запрос на замену</b>\n\n"
+        f"<b>{_escape(requester_name)}</b> просит тебя выложить <b>свой</b> ролик в его слот.\n\n"
+        f"📅 День: <b>{_escape(format_day_label(slot_day))}</b>\n"
+        f"📺 Канал: <b>{_escape(channel.title)}</b>\n\n"
+        "Если согласишься, на эту неделю слот перейдёт тебе."
+    )
+    await _send_text(
+        target_chat_id,
+        text,
+        reply_markup=_request_action_keyboard(int(request_row["id"])),
+    )
+
+
+async def _notify_requester_about_decline(request_row: dict) -> None:
+    requester = get_active_user(str(request_row["requester_username"]))
+    target = get_active_user(str(request_row["target_username"]))
+    if not requester or not target:
+        return
+    requester_chat_id = _safe_chat_id(requester)
+    if not requester_chat_id:
+        return
+    target_name = _display_name(target, fallback=str(request_row["target_username"]))
+    slot_day = date.fromisoformat(str(request_row["slot_date"]))
+    await _send_candidate_picker(
+        requester_chat_id,
+        str(request_row["requester_username"]),
+        slot_day,
+        note=(
+            f"❌ <b>{_escape(target_name)}</b> отказал по слоту "
+            f"<b>{_escape(format_day_label(slot_day))}</b>.\n"
+            "Выбери другого битмаря."
+        ),
+    )
+
+
+async def _notify_participants_about_accept(request_row: dict) -> None:
+    requester = get_active_user(str(request_row["requester_username"]))
+    target = get_active_user(str(request_row["target_username"]))
+    if not requester or not target:
+        return
+    requester_chat_id = _safe_chat_id(requester)
+    target_chat_id = _safe_chat_id(target)
+    channel = get_youtube_channel(str(request_row["channel_id"]))
+    slot_day = date.fromisoformat(str(request_row["slot_date"]))
+    target_name = _display_name(target, fallback=str(request_row["target_username"]))
+    text = (
+        "✅ <b>Замена подтверждена</b>\n\n"
+        f"📅 День: <b>{_escape(format_day_label(slot_day))}</b>\n"
+        f"📺 Канал: <b>{_escape(channel.title)}</b>\n"
+        f"👤 Новый исполнитель: <b>{_escape(target_name)}</b>\n\n"
+        "На сайте слот уже должен быть активен на эту неделю."
+    )
+    if requester_chat_id:
+        await _upsert_view_message(requester_chat_id, text, reply_markup=_menu_back_keyboard())
+
+
+async def _handle_menu_action(chat_id: int | str, user: dict, action: str, *, source_message: types.Message | None = None) -> None:
+    username = str(user["username"])
+    if action == "root":
+        await _send_menu(chat_id, user, source_message=source_message)
+        return
+    if action == "base":
+        await _upsert_view_message(chat_id, build_base_schedule_text(), reply_markup=_menu_back_keyboard(), source_message=source_message)
+        return
+    if action == "actual":
+        await _upsert_view_message(chat_id, build_actual_schedule_text(), reply_markup=_menu_back_keyboard(), source_message=source_message)
+        return
+    if action == "mine":
+        await _upsert_view_message(chat_id, build_user_requests_text(username), reply_markup=_menu_back_keyboard(), source_message=source_message)
+        return
+    if action == "request":
+        await _send_slot_picker(chat_id, username, source_message=source_message)
+        return
+    await _send_menu(chat_id, user, source_message=source_message)
+
+
+async def _handle_slot_pick(chat_id: int | str, user: dict, slot_iso: str, *, source_message: types.Message | None = None) -> None:
     try:
-        await bot.edit_message_reply_markup(
-            chat_id=cb.message.chat.id,
-            message_id=cb.message.message_id,
-            reply_markup=None,
-        )
+        slot_day = date.fromisoformat(slot_iso)
     except Exception:
-        pass
+        await _upsert_view_message(chat_id, "Не удалось распознать выбранную дату.", reply_markup=_menu_back_keyboard(), source_message=source_message)
+        return
+    await _send_candidate_picker(chat_id, str(user["username"]), slot_day, source_message=source_message)
 
 
-async def _handle_stop_callback(cb: types.CallbackQuery, username: str, day_iso: str):
-    kellmi = _get_kellmi_member()
-    kellmi_user_id = (kellmi or {}).get("tg_user_id")
-    actual_user_id = cb.from_user.id if cb.from_user else None
-
-    if not kellmi_user_id:
-        await bot.answer_callback_query(
-            cb.id,
-            text="ID Kellmi не настроен.",
-            show_alert=True,
-        )
+async def _handle_target_pick(
+    chat_id: int | str,
+    user: dict,
+    slot_iso: str,
+    target_username: str,
+    *,
+    source_message: types.Message | None = None,
+) -> None:
+    try:
+        slot_day = date.fromisoformat(slot_iso)
+    except Exception:
+        await _upsert_view_message(chat_id, "Не удалось распознать выбранную дату.", reply_markup=_menu_back_keyboard(), source_message=source_message)
         return
 
-    if int(actual_user_id) != int(kellmi_user_id):
-        await bot.answer_callback_query(
-            cb.id,
-            text="Только Kellmi может остановить напоминания.",
-            show_alert=True,
+    try:
+        request_row = create_replacement_request(
+            requester_username=str(user["username"]),
+            slot_date=slot_day,
+            target_username=target_username,
         )
+    except ValueError as error:
+        await _upsert_view_message(chat_id, str(error), reply_markup=_menu_back_keyboard(), source_message=source_message)
         return
 
-    _manual_stop_cache.add((day_iso, username))
+    await _upsert_view_message(
+        chat_id,
+        "📨 <b>Запрос отправлен.</b>\n\nОжидаем ответа от второго участника.",
+        reply_markup=_menu_back_keyboard(),
+        source_message=source_message,
+    )
+    await _send_request_to_target(request_row)
+
+
+async def _handle_accept(chat_id: int | str, user: dict, request_id: int, *, source_message: types.Message | None = None) -> None:
     try:
-        day_obj = datetime.strptime(day_iso, "%Y-%m-%d").date()
-        mark_manual_stop_on_day(day_obj, username, str(actual_user_id))
-    except Exception as stop_db_err:
-        print(f"--> [TELEGRAM STOP STORE ERROR] {stop_db_err}")
+        request_row = accept_replacement_request(request_id, accepted_by_username=str(user["username"]))
+    except ValueError as error:
+        await _upsert_view_message(chat_id, str(error), reply_markup=_menu_back_keyboard(), source_message=source_message)
+        return
+    await _upsert_view_message(chat_id, "✅ <b>Запрос принят.</b>", reply_markup=_menu_back_keyboard(), source_message=source_message)
+    await _notify_participants_about_accept(request_row)
 
-    print(f"--> [TELEGRAM STOP SET] user={username} day={day_iso} by={actual_user_id}")
-    await bot.answer_callback_query(cb.id, text="Напоминания остановлены ✅")
+
+async def _handle_decline(chat_id: int | str, user: dict, request_id: int, *, source_message: types.Message | None = None) -> None:
+    try:
+        request_row = decline_replacement_request(request_id, declined_by_username=str(user["username"]))
+    except ValueError as error:
+        await _upsert_view_message(chat_id, str(error), reply_markup=_menu_back_keyboard(), source_message=source_message)
+        return
+    await _upsert_view_message(chat_id, "❌ <b>Запрос отклонён.</b>", reply_markup=_menu_back_keyboard(), source_message=source_message)
+    await _notify_requester_about_decline(request_row)
+
+
+async def _handle_callback(cb: types.CallbackQuery) -> None:
+    if not cb.data:
+        return
+    user = _resolve_known_user(cb)
+    if not user:
+        await bot.answer_callback_query(cb.id, text="Ты не найден в системе.", show_alert=True)
+        return
 
     try:
-        await bot.edit_message_reply_markup(
-            chat_id=cb.message.chat.id,
-            message_id=cb.message.message_id,
-            reply_markup=None,
-        )
-    except Exception:
-        pass
+        if cb.data.startswith("menu:"):
+            await bot.answer_callback_query(cb.id)
+            await _handle_menu_action(cb.message.chat.id, user, cb.data.split(":", 1)[1], source_message=cb.message)
+            return
+        if cb.data.startswith("swap_slot:"):
+            await bot.answer_callback_query(cb.id)
+            await _handle_slot_pick(cb.message.chat.id, user, cb.data.split(":", 1)[1], source_message=cb.message)
+            return
+        if cb.data.startswith("swap_target:"):
+            _, slot_iso, target_username = cb.data.split(":", 2)
+            await bot.answer_callback_query(cb.id)
+            await _handle_target_pick(cb.message.chat.id, user, slot_iso, target_username, source_message=cb.message)
+            return
+        if cb.data.startswith("swap_accept:"):
+            await bot.answer_callback_query(cb.id, text="Принято")
+            await _handle_accept(cb.message.chat.id, user, int(cb.data.split(":", 1)[1]), source_message=cb.message)
+            return
+        if cb.data.startswith("swap_decline:"):
+            await bot.answer_callback_query(cb.id, text="Отклонено")
+            await _handle_decline(cb.message.chat.id, user, int(cb.data.split(":", 1)[1]), source_message=cb.message)
+            return
+    except Exception as error:
+        print(f"--> [TELEGRAM CALLBACK ERROR] {error}")
+        try:
+            await bot.answer_callback_query(cb.id, text="Произошла ошибка", show_alert=True)
+        except Exception:
+            pass
 
 
-async def _callback_updates_loop():
+async def _handle_message(msg: types.Message) -> None:
+    if not msg or not msg.chat:
+        return
+
+    text = str(msg.text or "").strip()
+    if text.startswith("/start"):
+        user = _resolve_known_user(msg)
+        _log_start_probe(msg.from_user, user)
+        if user:
+            await _upsert_view_message(msg.chat.id, "✅ Аккаунт найден.\n\nНапиши /menu чтобы открыть меню.")
+        else:
+            await _send_unknown_user_message(msg.chat.id)
+        return
+
+    user = _resolve_known_user(msg)
+    if not user:
+        if text:
+            await _send_unknown_user_message(msg.chat.id)
+        return
+
+    if text.startswith("/menu"):
+        await _send_menu(msg.chat.id, user)
+        return
+
+
+async def _bot_updates_loop() -> None:
     global _updates_offset
     while not _stop_event.is_set():
+        if not bot:
+            await asyncio.sleep(3)
+            continue
         try:
             updates = await bot.get_updates(timeout=20, offset=_updates_offset)
             for upd in updates:
                 _updates_offset = upd.update_id + 1
 
-                msg = upd.message
-                if msg and msg.text and msg.text.strip().startswith("/start"):
-                    u = msg.from_user
-                    uname = (u.username or "").strip() if u else ""
-                    full_name = (u.full_name or "").strip() if u else ""
-                    user_id = u.id if u else None
-                    print(f"--> [TELEGRAM START] username=@{uname or '-'} name={full_name or '-'} id={user_id}")
-
-                cb = upd.callback_query
-                if not cb or not cb.data:
-                    continue
-
-                if cb.data.startswith("ack:"):
-                    _, username, day_iso = cb.data.split(":", 2)
-                    await _handle_ack_callback(cb, username, day_iso)
-                    continue
-
-                if cb.data.startswith("stop:"):
-                    _, username, day_iso = cb.data.split(":", 2)
-                    await _handle_stop_callback(cb, username, day_iso)
-                    continue
-        except Exception as e:
-            if "Query is too old and response timeout expired or query id is invalid" in str(e):
+                if upd.message:
+                    await _handle_message(upd.message)
+                if upd.callback_query:
+                    await _handle_callback(upd.callback_query)
+        except Exception as error:
+            if "query is too old" in str(error).lower():
                 continue
-            print(f"--> [TELEGRAM CALLBACK ERROR] {e}")
+            print(f"--> [TELEGRAM BOT ERROR] {error}")
             await asyncio.sleep(5)
 
 
-async def start_reminder_service():
-    global _reminder_loop_task, _callback_loop_task
-    if _reminder_loop_task and not _reminder_loop_task.done():
+async def start_reminder_service(*, enable_reminders: bool = False):
+    global _bot_loop_task, _reminders_enabled
+    if _bot_loop_task and not _bot_loop_task.done():
+        return
+    if not TOKEN:
+        print("--> [TELEGRAM] TELEGRAM_BOT_TOKEN not configured, bot loop skipped")
         return
 
+    ensure_schedule_bootstrap()
+    _reminders_enabled = enable_reminders
     _stop_event.clear()
-    _reminder_loop_task = asyncio.create_task(_reminder_loop(), name="tg-reminder-loop")
-    _callback_loop_task = asyncio.create_task(_callback_updates_loop(), name="tg-callback-loop")
-    print("--> [TELEGRAM] Reminder service started")
+    _bot_loop_task = asyncio.create_task(_bot_updates_loop(), name="tg-bot-loop")
+    print(f"--> [TELEGRAM] Bot service started (reminders={'on' if _reminders_enabled else 'off'})")
 
 
 async def stop_reminder_service():
-    global _reminder_loop_task, _callback_loop_task
+    global _bot_loop_task
     _stop_event.set()
-
-    tasks = [t for t in (_reminder_loop_task, _callback_loop_task) if t is not None]
+    tasks = [task for task in (_bot_loop_task,) if task is not None]
     if tasks:
-        for t in tasks:
-            t.cancel()
+        for task in tasks:
+            task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+    _bot_loop_task = None
 
-    session = await bot.get_session()
-    await session.close()
-    print("--> [TELEGRAM] Reminder service stopped")
+    if bot:
+        session = await bot.get_session()
+        await session.close()
+    print("--> [TELEGRAM] Bot service stopped")
 
 
 async def main():
-    print("--> [TELEGRAM] Bot started in reminder mode")
-    await start_reminder_service()
+    await start_reminder_service(enable_reminders=False)
     try:
         while True:
             await asyncio.sleep(3600)
@@ -588,50 +659,5 @@ async def main():
         await stop_reminder_service()
 
 
-async def run_test_mode():
-    """
-    Тестовый сценарий:
-    - через 10 секунд отправляет напоминание в ЛС TEST_CHAT_ID
-    - отправляет Kellmi кнопку "❌ прекратить напоминать"
-    - callback loop включен, чтобы проверить нажатия
-    """
-    print(f"--> [TELEGRAM TEST] Waiting {TEST_DELAY_SECONDS}s before test reminder...")
-    _stop_event.clear()
-    callback_task = asyncio.create_task(_callback_updates_loop(), name="tg-callback-loop-test")
-    try:
-        await asyncio.sleep(TEST_DELAY_SECONDS)
-        now_msk = datetime.now(MSK)
-        day_iso = now_msk.date().isoformat()
-
-        member = _get_member_by_username(TEST_USERNAME)
-        if not member:
-            raise RuntimeError(f"TEST_USERNAME '{TEST_USERNAME}' not found in WEEKDAY_DUTY")
-
-        # В тесте принудительно шлем на тестовый chat_id, чтобы не зависеть от дня недели.
-        test_member = dict(member)
-        test_member["chat_id"] = TEST_CHAT_ID
-        test_member["tg_user_id"] = TEST_CHAT_ID
-
-        await _send_reminder(member=test_member, msk_now=now_msk)
-        await _send_kellmi_stop_control(member=test_member, day_iso=day_iso)
-        print("--> [TELEGRAM TEST] Reminder sent to test user and control sent to Kellmi")
-        print("--> [TELEGRAM TEST] Press buttons in Telegram. Ctrl+C to stop.")
-
-        while True:
-            await asyncio.sleep(3600)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        _stop_event.set()
-        callback_task.cancel()
-        await asyncio.gather(callback_task, return_exceptions=True)
-        session = await bot.get_session()
-        await session.close()
-        print("--> [TELEGRAM TEST] Session closed")
-
-
 if __name__ == "__main__":
-    if os.getenv("TELEGRAM_TEST_MODE", "0") == "1":  # $env:TELEGRAM_TEST_MODE="1"  | echo $env:TELEGRAM_TEST_MODE
-        asyncio.run(run_test_mode())
-    else:
-        asyncio.run(main())
+    asyncio.run(main())

@@ -49,6 +49,30 @@ PREVIEW_NEGATIVE_TERMS = {
     "cooking",
     "kitchen",
     "chef",
+    "woman",
+    "women",
+    "girl",
+    "girls",
+    "lady",
+    "ladies",
+    "female",
+    "makeup",
+    "bride",
+    "wedding",
+    "lingerie",
+    "heels",
+    "bikini",
+    "lighting design",
+    "stage lighting design",
+    "lamp",
+    "lamps",
+    "bathroom",
+    "interior",
+    "architecture",
+    "room decor",
+    "decor",
+    "product photography",
+    "still life",
 }
 PREVIEW_POSITIVE_TERMS = {
     "rapper",
@@ -68,6 +92,9 @@ PREVIEW_POSITIVE_TERMS = {
     "keyboard",
     "mixing",
     "recording",
+    "male",
+    "underground",
+    "artist portrait",
 }
 
 
@@ -172,19 +199,19 @@ def build_people_query(artists: list[str]) -> list[str]:
 
     if not artists:
         return [
-            f"{site_limit} rapper aesthetic portrait",
-            f"{site_limit} hip hop artist editorial portrait",
-            f"{site_limit} trap rapper concert photography",
+            f"{site_limit} male rapper aesthetic portrait",
+            f"{site_limit} hip hop male artist editorial portrait",
+            f"{site_limit} underground rapper portrait",
         ]
 
     vibes = [
         "rapper aesthetic portrait",
         "hip hop editorial portrait",
-        "concert performance photography",
+        "male rapper portrait",
         "studio portrait",
         "dark moody portrait",
         "trap artist aesthetic",
-        "stage lighting portrait",
+        "underground rapper portrait",
     ]
 
     queries: list[str] = []
@@ -296,6 +323,9 @@ def _is_usable_preview_result(row: dict, artists: list[str]) -> bool:
     if artists:
         artist_tokens = [artist.lower() for artist in artists if artist.strip()]
         if not any(token in haystack for token in artist_tokens):
+            return False
+    else:
+        if not any(term in haystack for term in PREVIEW_POSITIVE_TERMS):
             return False
     return True
 

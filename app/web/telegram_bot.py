@@ -50,6 +50,27 @@ _reminders_enabled = False
 _chat_view_message_ids: dict[tuple[int, int | None], int] = {}
 
 
+async def _configure_bot_commands() -> None:
+    if not bot:
+        return
+
+    commands = [
+        types.BotCommand(command="start", description="Запуск и проверка аккаунта"),
+        types.BotCommand(command="menu", description="Главное меню"),
+    ]
+
+    try:
+        await bot.set_my_commands(commands)
+        await bot.set_my_commands(commands, scope=types.BotCommandScopeAllPrivateChats())
+    except Exception as error:
+        print(f"--> [TELEGRAM] Failed to register bot commands: {error}")
+
+    try:
+        await bot.set_chat_menu_button(menu_button=types.MenuButtonCommands())
+    except Exception as error:
+        print(f"--> [TELEGRAM] Failed to set chat menu button: {error}")
+
+
 def _escape(value: str | None) -> str:
     return html.escape(str(value or ""))
 
@@ -712,6 +733,7 @@ async def start_reminder_service(*, enable_reminders: bool = False):
         return
 
     ensure_schedule_bootstrap()
+    await _configure_bot_commands()
     _reminders_enabled = enable_reminders
     _stop_event.clear()
     _bot_loop_task = asyncio.create_task(_bot_updates_loop(), name="tg-bot-loop")

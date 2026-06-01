@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import html
 import os
+from typing import Any
 from datetime import datetime, timedelta, timezone, date
 
 from aiogram import Bot, types
@@ -203,6 +204,61 @@ async def send_upload_report(
         print("--> [TELEGRAM] Отчет успешно отправлен.")
     except Exception as e:
         print(f"--> [TELEGRAM ERROR] Ошибка: {e}")
+
+
+async def send_admin_broadcast(message_html: str, *, target_usernames: list[str] | None = None) -> dict[str, Any]:
+    if not bot:
+        raise RuntimeError("Telegram-бот не настроен: отсутствует TELEGRAM_BOT_TOKEN.")
+
+    text = str(message_html or "").strip()
+    if not text:
+        raise ValueError("Сообщение для рассылки пустое.")
+
+    normalized_targets = {
+        _normalize_key(item)
+        for item in (target_usernames or [])
+        if _normalize_key(item)
+    }
+    recipients = list_active_users(require_telegram_binding=True)
+    if normalized_targets:
+        recipients = [item for item in recipients if _normalize_key(item.get("username")) in normalized_targets]
+        if not recipients:
+            raise ValueError("Выбранные получатели не найдены или у них не привязан Telegram.")
+
+    if not recipients:
+        raise ValueError("В системе нет активных пользователей с привязанным Telegram.")
+
+    sent_count = 0
+    failed: list[dict[str, str]] = []
+
+    for recipient in recipients:
+        chat_id = _safe_chat_id(recipient)
+        if not chat_id:
+            continue
+        username = str(recipient.get("username") or "")
+        display_name = _display_name(recipient, fallback=username or "user")
+        try:
+            await _send_text(chat_id, text)
+            sent_count += 1
+            await asyncio.sleep(0.05)
+        except Exception as error:
+            failed.append(
+                {
+                    "username": username,
+                    "display_name": display_name,
+                    "error": str(error),
+                }
+            )
+
+    if sent_count == 0 and failed:
+        first_error = failed[0]["error"]
+        raise RuntimeError(f"Рассылка не выполнена. Первая ошибка Telegram: {first_error}")
+
+    return {
+        "total": len(recipients),
+        "sent": sent_count,
+        "failed": failed,
+    }
 
 
 def _match_user_by_hints(from_user: types.User | None) -> dict | None:

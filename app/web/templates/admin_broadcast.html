@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Broadcast</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=15">
+  <link rel="icon" href="/static/favicon.ico">
+</head>
+<body>
+<nav class="navbar navbar-expand navbar-dark bg-dark glitch-nav">
+  <div class="container-fluid d-flex align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <span class="navbar-brand mb-0 h1 glitch-brand">
+        <span class="text-danger">YouTube</span><span class="text-warning">Uploader</span>
+      </span>
+      <span class="navbar-text text-secondary glitch-subtitle">ADMIN // BROADCAST PANEL</span>
+    </div>
+    <div class="ms-auto d-flex gap-2">
+      <a href="/" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="HOME">
+        <span class="btn-text">HOME</span>
+      </a>
+      <a href="/admin" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="BACK">
+        <span class="btn-text">BACK</span>
+      </a>
+      <form method="post" action="/logout" class="m-0">
+        <button type="submit" class="btn btn-outline-danger btn-sm glitch-btn glitch-btn--sm" data-text="LOGOUT">
+          <span class="btn-text">LOGOUT</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-4">
+  {% if success_message %}
+  <div class="alert alert-success">{{ success_message }}</div>
+  {% endif %}
+  {% if error_message %}
+  <div class="alert alert-danger">{{ error_message }}</div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-12 col-xl-8">
+      <div class="card glitch-card-ui">
+        <div class="card-header glitch-card-header d-flex align-items-center justify-content-between">
+          <div class="glitch-card-title">TELEGRAM_BROADCAST</div>
+          <div class="small text-secondary">Рассылка всем активным пользователям с привязанным Telegram</div>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-warning small">
+            В редакторе используется Telegram HTML-разметка. Бот отправит сообщение как есть, поэтому лучше держать теги аккуратными и закрытыми.
+          </div>
+
+          <form method="post" action="/admin/broadcast" class="broadcast-form">
+            <div class="glitch-panel p-3 mb-3">
+              <div class="broadcast-toolbar" data-editor-toolbar>
+                <button type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--sm" data-wrap="<b>|</b>" data-text="B">
+                  <span class="btn-text">Жирный</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--sm" data-wrap="<i>|</i>" data-text="I">
+                  <span class="btn-text">Курсив</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--sm" data-wrap="<u>|</u>" data-text="U">
+                  <span class="btn-text">Подчеркнутый</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--sm" data-wrap="<s>|</s>" data-text="S">
+                  <span class="btn-text">Зачёркнутый</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--sm" data-wrap="<blockquote>|</blockquote>" data-text="QUOTE">
+                  <span class="btn-text">Цитата</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--sm" data-wrap="<code>|</code>" data-text="CODE">
+                  <span class="btn-text">Моно</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--sm" data-wrap="<tg-spoiler>|</tg-spoiler>" data-text="SPOILER">
+                  <span class="btn-text">Скрытый</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary glitch-btn glitch-btn--sm" data-action="link" data-text="LINK">
+                  <span class="btn-text">Ссылка</span>
+                </button>
+              </div>
+            </div>
+
+            <input type="hidden" id="broadcast_target_usernames" name="target_usernames" value="{{ (broadcast_target_usernames or [])|join(',') }}">
+
+            <div class="glitch-field">
+              <label class="form-label glitch-label" data-text="Текст рассылки">Текст рассылки</label>
+              <textarea
+                id="broadcast_message_html"
+                name="message_html"                
+                class="form-control glitch-input broadcast-textarea"
+                placeholder="Например:&#10;<b>🤖 Обновление бота</b>&#10;&#10;<blockquote>На этой неделе расписание обновлено.</blockquote>"
+                required
+              >{{ broadcast_message }}</textarea>
+            </div>
+
+            <div class="glitch-panel p-3 broadcast-target-panel mt-4">
+              <div class="small text-info mb-2">Кому отправить</div>
+              <div class="small text-muted mb-3">
+                Если никого не выбирать, сообщение уйдёт всем. Можно отметить одного, трёх или любое другое количество битмарей.
+              </div>
+
+              <div class="broadcast-target-summary" id="broadcast_target_summary">
+                {% if broadcast_target_usernames %}
+                Сейчас выбрано: {{ broadcast_target_usernames|length }} получ.
+                {% else %}
+                Сейчас выбрано: все получатели
+                {% endif %}
+              </div>
+
+              <div class="broadcast-target-grid">
+                {% for target in broadcast_targets %}
+                <button
+                  type="button"
+                  class="broadcast-target-card{% if target.username in (broadcast_target_usernames or []) %} is-selected{% endif %}"
+                  data-broadcast-target="{{ target.username }}"
+                >
+                  <span class="broadcast-target-card__meta">{{ target.username }}</span>
+                  <span class="broadcast-target-card__title">{{ target.display_name }}</span>
+                  <span class="broadcast-target-card__mark">{% if target.username in (broadcast_target_usernames or []) %}ВЫБРАН{% else %}НЕ ВЫБРАН{% endif %}</span>
+                </button>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4">
+              <button type="submit" class="btn btn-primary glitch-primary-like-login" data-text="МОБИЛИЗОВАТЬ">
+                <span class="btn-text">Отправить рассылку</span>
+              </button>
+              <a href="/admin" class="btn btn-outline-secondary glitch-btn glitch-btn--md" data-text="Отмена">
+                <span class="btn-text">Отмена</span>
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <div class="card glitch-card-ui">
+        <div class="card-header glitch-card-header">
+          <div class="glitch-card-title">FORMAT_HINTS</div>
+        </div>
+        <div class="card-body">
+          <div class="glitch-panel p-3 broadcast-preview-panel mb-3">
+            <div class="broadcast-preview-meta mb-2">Telegram preview</div>
+            <div id="broadcast_preview" class="broadcast-preview-body">
+              <b>Предпросмотр сообщения</b><br><br>Начни печатать текст слева, и здесь появится пример того, как это будет выглядеть после отправки.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/admin_broadcast.js?v=15"></script>
+</body>
+</html>

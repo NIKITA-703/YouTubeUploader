@@ -2536,6 +2536,194 @@ textarea.glitch-input:focus {
   white-space: nowrap;
 }
 
+.broadcast-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.broadcast-toolbar .glitch-btn {
+  min-width: 118px;
+}
+
+.broadcast-textarea {
+  min-height: 142px;
+  height: 142px;
+  resize: vertical;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  line-height: 1.55;
+}
+
+.broadcast-preview-meta {
+  color: rgba(229, 229, 229, 0.52);
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.broadcast-preview-panel {
+  background:
+    linear-gradient(180deg, rgba(0, 242, 234, 0.05), rgba(0, 0, 0, 0.22)) !important;
+}
+
+.broadcast-preview-body {
+  min-height: 220px;
+  padding: 14px 16px;
+  border: 1px solid rgba(0, 242, 234, 0.12);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(0, 242, 234, 0.08), transparent 42%),
+    rgba(0, 242, 234, 0.05);
+  color: #f5ffff;
+  box-shadow: 0 0 18px rgba(0, 242, 234, 0.08);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+}
+
+.broadcast-preview-body a {
+  color: #7bdcff;
+}
+
+.broadcast-preview-body code {
+  color: #9cfbf8;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0.08rem 0.35rem;
+  border-radius: 6px;
+}
+
+.broadcast-preview-body blockquote {
+  margin: 0.35rem 0;
+  padding-left: 0.8rem;
+  border-left: 3px solid rgba(0, 242, 234, 0.45);
+  color: rgba(229, 229, 229, 0.88);
+}
+
+.broadcast-preview-body tg-spoiler {
+  background: rgba(229, 229, 229, 0.18);
+  color: transparent;
+  border-radius: 6px;
+  padding: 0 0.18rem;
+}
+
+.broadcast-preview-body tg-spoiler:hover {
+  color: #f5ffff;
+}
+
+.broadcast-target-panel {
+  background:
+    linear-gradient(180deg, rgba(0, 242, 234, 0.04), rgba(0, 0, 0, 0.18)) !important;
+}
+
+.broadcast-target-summary {
+  margin-bottom: 12px;
+  color: #9cfbf8;
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.broadcast-target-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.broadcast-target-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 242, 234, 0.14);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(0, 242, 234, 0.06), transparent 42%),
+    rgba(0, 0, 0, 0.2);
+  color: #f5ffff;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.broadcast-target-card:hover,
+.broadcast-target-card:focus-visible {
+  border-color: rgba(0, 242, 234, 0.32);
+  box-shadow: 0 0 18px rgba(0, 242, 234, 0.12);
+  background:
+    radial-gradient(circle at top right, rgba(0, 242, 234, 0.1), transparent 42%),
+    rgba(0, 242, 234, 0.04);
+  transform: translateY(-1px);
+}
+
+.broadcast-target-card.is-selected {
+  border-color: rgba(0, 242, 234, 0.82);
+  box-shadow:
+    0 0 0 1px rgba(0, 242, 234, 0.14) inset,
+    0 0 24px rgba(0, 242, 234, 0.18);
+  background:
+    linear-gradient(90deg, rgba(0, 242, 234, 0.14), rgba(0, 242, 234, 0.04));
+}
+
+.broadcast-target-card__meta {
+  grid-column: 1 / 2;
+  color: rgba(229, 229, 229, 0.52);
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.broadcast-target-card__title {
+  grid-column: 1 / 2;
+  color: #f7ffff;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.broadcast-target-card.is-selected .broadcast-target-card__title {
+  color: var(--ui-primary);
+  text-shadow: 0 0 16px rgba(0, 242, 234, 0.16);
+}
+
+.broadcast-target-card__mark {
+  grid-column: 2 / 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding: 0.28rem 0.65rem;
+  border: 1px solid rgba(0, 242, 234, 0.18);
+  border-radius: 999px;
+  color: rgba(229, 229, 229, 0.46);
+  font-family: "Fira Code", Consolas, "Courier New", Courier, monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.broadcast-target-card.is-selected .broadcast-target-card__mark {
+  border-color: rgba(0, 242, 234, 0.62);
+  background: rgba(0, 242, 234, 0.12);
+  color: var(--ui-primary);
+}
+
+@media (min-width: 1200px) {
+  .broadcast-target-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .broadcast-target-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* =========================
    SUCCESS ALERT (System Log Style)
@@ -3280,6 +3468,122 @@ span.flatpickr-weekday {
   border-color: rgba(0, 242, 234, 0.58);
   background: rgba(0, 242, 234, 0.12);
   color: var(--ui-primary);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__badge,
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__trigger-value,
+.channel-picker--kellmi .channel-picker__option.is-active[data-channel-theme="main"] .channel-picker__option-title,
+.channel-picker--kellmi .channel-picker__option.is-active[data-channel-theme="main"] .channel-picker__option-mark {
+  color: #e84552;
+  text-shadow: 0 0 12px rgba(232, 69, 82, 0.16);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__badge {
+  border-color: rgba(232, 69, 82, 0.42);
+  background: rgba(232, 69, 82, 0.08);
+  box-shadow: 0 0 14px rgba(232, 69, 82, 0.1);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__trigger {
+  border-color: rgba(232, 69, 82, 0.42);
+  box-shadow:
+    0 0 0 0.18rem rgba(232, 69, 82, 0.08),
+    0 0 22px rgba(232, 69, 82, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.66) inset;
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__trigger-icon {
+  border-right-color: rgba(232, 69, 82, 0.82);
+  border-bottom-color: rgba(232, 69, 82, 0.82);
+}
+
+.channel-picker--kellmi .channel-picker__option.is-active[data-channel-theme="main"] {
+  border-color: rgba(232, 69, 82, 0.52);
+  background:
+    linear-gradient(90deg, rgba(232, 69, 82, 0.1), rgba(232, 69, 82, 0.03));
+  box-shadow:
+    0 0 0 1px rgba(232, 69, 82, 0.07) inset,
+    0 0 18px rgba(232, 69, 82, 0.1);
+}
+
+.channel-picker--kellmi .channel-picker__option.is-active[data-channel-theme="main"] .channel-picker__option-mark {
+  border-color: rgba(232, 69, 82, 0.42);
+  background: rgba(232, 69, 82, 0.08);
+  box-shadow: 0 0 12px rgba(232, 69, 82, 0.08);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__option:not(.is-active)[data-channel-theme="secondary"] {
+  border-color: rgba(154, 92, 240, 0.22);
+  background:
+    linear-gradient(90deg, rgba(154, 92, 240, 0.04), rgba(154, 92, 240, 0.015));
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__option:not(.is-active)[data-channel-theme="secondary"] .channel-picker__option-title,
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__option:not(.is-active)[data-channel-theme="secondary"] .channel-picker__option-mark {
+  color: rgba(154, 92, 240, 0.78);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-main .channel-picker__option:not(.is-active)[data-channel-theme="secondary"] .channel-picker__option-mark {
+  border-color: rgba(154, 92, 240, 0.28);
+  background: rgba(154, 92, 240, 0.05);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__badge,
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__trigger-value,
+.channel-picker--kellmi .channel-picker__option.is-active[data-channel-theme="secondary"] .channel-picker__option-title,
+.channel-picker--kellmi .channel-picker__option.is-active[data-channel-theme="secondary"] .channel-picker__option-mark {
+  color: #9a5cf0;
+  text-shadow: 0 0 12px rgba(154, 92, 240, 0.16);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__badge {
+  border-color: rgba(154, 92, 240, 0.4);
+  background: rgba(154, 92, 240, 0.08);
+  box-shadow: 0 0 14px rgba(154, 92, 240, 0.1);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__trigger {
+  border-color: rgba(154, 92, 240, 0.42);
+  box-shadow:
+    0 0 0 0.18rem rgba(154, 92, 240, 0.08),
+    0 0 22px rgba(154, 92, 240, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.66) inset;
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__trigger-icon {
+  border-right-color: rgba(154, 92, 240, 0.82);
+  border-bottom-color: rgba(154, 92, 240, 0.82);
+}
+
+.channel-picker--kellmi .channel-picker__option.is-active[data-channel-theme="secondary"] {
+  border-color: rgba(154, 92, 240, 0.5);
+  background:
+    linear-gradient(90deg, rgba(154, 92, 240, 0.1), rgba(154, 92, 240, 0.03));
+  box-shadow:
+    0 0 0 1px rgba(154, 92, 240, 0.07) inset,
+    0 0 18px rgba(154, 92, 240, 0.1);
+}
+
+.channel-picker--kellmi .channel-picker__option.is-active[data-channel-theme="secondary"] .channel-picker__option-mark {
+  border-color: rgba(154, 92, 240, 0.4);
+  background: rgba(154, 92, 240, 0.08);
+  box-shadow: 0 0 12px rgba(154, 92, 240, 0.08);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__option:not(.is-active)[data-channel-theme="main"] {
+  border-color: rgba(232, 69, 82, 0.22);
+  background:
+    linear-gradient(90deg, rgba(232, 69, 82, 0.04), rgba(232, 69, 82, 0.015));
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__option:not(.is-active)[data-channel-theme="main"] .channel-picker__option-title,
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__option:not(.is-active)[data-channel-theme="main"] .channel-picker__option-mark {
+  color: rgba(232, 69, 82, 0.8);
+}
+
+.channel-picker--kellmi .channel-picker__frame--accented.theme-secondary .channel-picker__option:not(.is-active)[data-channel-theme="main"] .channel-picker__option-mark {
+  border-color: rgba(232, 69, 82, 0.28);
+  background: rgba(232, 69, 82, 0.05);
 }
 
 .channel-picker__trigger-meta {

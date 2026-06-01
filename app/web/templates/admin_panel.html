@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Admin Panel</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=11">
+  <link rel="stylesheet" href="/static/style.css?v=12">
   <link rel="icon" href="/static/favicon.ico">
 </head>
 <body>
@@ -18,6 +18,9 @@
       <span class="navbar-text text-secondary glitch-subtitle">ADMIN // CONTROL PANEL</span>
     </div>
     <div class="ms-auto d-flex gap-2">
+      <a href="/" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="HOME">
+        <span class="btn-text">HOME</span>
+      </a>
       <a href="/" class="btn btn-outline-secondary btn-sm glitch-btn glitch-btn--sm" data-text="BACK">
         <span class="btn-text">BACK</span>
       </a>
@@ -83,6 +86,18 @@
             <div class="mt-auto">
               <a href="/admin/schedule" class="btn btn-primary glitch-primary-like-login admin-hub-btn w-100" data-text="РУТИНА">
                 <span class="btn-text">Управлять расписанием</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-3">
+          <div class="glitch-panel h-100 p-4 d-flex flex-column">
+            <div class="glitch-section-title mb-2">Рассылка через бота</div>
+            <div class="text-muted small mb-4">Отправка общего сообщения всем активным пользователям с привязанным Telegram.</div>
+            <div class="mt-auto">
+              <a href="/admin/broadcast" class="btn btn-primary glitch-primary-like-login admin-hub-btn w-100" data-text="ПОВЕСТКИ">
+                <span class="btn-text">Открыть рассылку</span>
               </a>
             </div>
           </div>

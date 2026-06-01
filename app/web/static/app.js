@@ -135,30 +135,44 @@ function getYoutubeChannelFrameEl() {
   return document.querySelector(".channel-picker__frame");
 }
 
-function getYoutubeChannelTitleById(channelId) {
-  if (!youtubeChannelEl) return "";
-  const option = Array.from(youtubeChannelEl.options).find((item) => item.value === String(channelId || "").trim());
-  return String(option?.dataset?.channelTitle || option?.textContent || "").trim();
-}
-
-function getSelectedYoutubeChannelTitle() {
-  if (!youtubeChannelEl) return "";
-  const option = youtubeChannelEl.options[youtubeChannelEl.selectedIndex];
-  return String(option?.dataset?.channelTitle || option?.textContent || "").trim();
-}
-
-function syncSelectedYoutubeChannelUi() {
-  if (!youtubeChannelEl) return;
-  const title = getSelectedYoutubeChannelTitle();
-  if (youtubeChannelBadgeEl) {
-    youtubeChannelBadgeEl.textContent = title || "Канал не выбран";
-  }
-  if (youtubeChannelValueEl) {
-    youtubeChannelValueEl.textContent = title || "Канал не выбран";
+  function getYoutubeChannelTitleById(channelId) {
+    if (!youtubeChannelEl) return "";
+    const option = Array.from(youtubeChannelEl.options).find((item) => item.value === String(channelId || "").trim());
+    return String(option?.dataset?.channelTitle || option?.textContent || "").trim();
   }
 
-  for (const optionBtn of getYoutubeChannelOptionButtons()) {
-    const isActive = optionBtn.dataset.channelId === String(youtubeChannelEl.value || "");
+  function getYoutubeChannelThemeById(channelId) {
+    if (!youtubeChannelEl) return "";
+    const option = Array.from(youtubeChannelEl.options).find((item) => item.value === String(channelId || "").trim());
+    return String(option?.dataset?.channelTheme || "").trim();
+  }
+
+  function getSelectedYoutubeChannelTitle() {
+    if (!youtubeChannelEl) return "";
+    const option = youtubeChannelEl.options[youtubeChannelEl.selectedIndex];
+    return String(option?.dataset?.channelTitle || option?.textContent || "").trim();
+}
+
+  function syncSelectedYoutubeChannelUi() {
+    if (!youtubeChannelEl) return;
+    const title = getSelectedYoutubeChannelTitle();
+    const theme = getYoutubeChannelThemeById(youtubeChannelEl.value);
+    const frameEl = getYoutubeChannelFrameEl();
+    if (youtubeChannelBadgeEl) {
+      youtubeChannelBadgeEl.textContent = title || "Канал не выбран";
+    }
+    if (youtubeChannelValueEl) {
+      youtubeChannelValueEl.textContent = title || "Канал не выбран";
+    }
+    if (frameEl && frameEl.classList.contains("channel-picker__frame--accented")) {
+      frameEl.classList.remove("theme-main", "theme-secondary");
+      if (theme) {
+        frameEl.classList.add(`theme-${theme}`);
+      }
+    }
+  
+    for (const optionBtn of getYoutubeChannelOptionButtons()) {
+      const isActive = optionBtn.dataset.channelId === String(youtubeChannelEl.value || "");
     optionBtn.classList.toggle("is-active", isActive);
     optionBtn.setAttribute("aria-selected", isActive ? "true" : "false");
     optionBtn.style.order = isActive ? "-1" : String(Number(optionBtn.dataset.optionIndex || "0") + 1);

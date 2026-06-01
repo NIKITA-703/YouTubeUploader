@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import hashlib
 import os
 import re
@@ -10,8 +9,9 @@ from fastapi import APIRouter, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import load_config
-from app.database import delete_user, get_user, list_users, upsert_user
+from app.database import add_operation_log, delete_user, get_user, list_users, upsert_user
 from app.web.common import templates
+from app.web.telegram_bot import send_admin_broadcast
 from app.weekly_schedule import (
     REQUEST_ACCEPTED,
     REQUEST_CANCELLED,
@@ -158,14 +158,16 @@ def _build_replacement_admin_rows() -> list[dict]:
 def index(request: Request):
     cfg = load_config()
     current_display_name = request.session.get("display_name", "")
+    current_username = (request.session.get("username") or "").strip().lower()
     default_title = cfg.default_title_template.format(display_name=current_display_name)
     final_title = (request.query_params.get("title") or "").strip()[:100] or default_title
     user_has_bs = request.session.get("has_beatstars", False)
     requested_channel_id = (request.query_params.get("channel_id") or "").strip()
+    default_channel_id = get_default_youtube_channel_id()
     try:
         selected_channel_id = get_youtube_channel(requested_channel_id or None).channel_id
     except Exception:
-        selected_channel_id = get_default_youtube_channel_id()
+        selected_channel_id = default_channel_id
 
     return templates.TemplateResponse(
         "index.html",
@@ -174,9 +176,12 @@ def index(request: Request):
             "show_beatstars": user_has_bs,
             "default_title": final_title,
             "is_admin": _is_admin(request),
+            "current_username": current_username,
             "create_video_enabled": _is_create_video_enabled(),
             "youtube_channels": get_public_youtube_channels(),
+            "default_youtube_channel_id": default_channel_id,
             "selected_youtube_channel_id": selected_channel_id,
+            "kellmi_channel_accent": current_username in {"kellmi", "kellmipenis"},
         },
     )
 
@@ -276,6 +281,28 @@ def admin_schedule_page(request: Request):
     )
 
 
+@router.get("/admin/broadcast", response_class=HTMLResponse)
+def admin_broadcast_page(request: Request):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    selected_targets = [
+        item.strip().lower()
+        for item in (request.query_params.get("targets") or "").split(",")
+        if item.strip()
+    ]
+
+    return templates.TemplateResponse(
+        "admin_broadcast.html",
+        _admin_common_context(
+            request,
+            broadcast_message=(request.query_params.get("message") or "").strip(),
+            broadcast_target_usernames=selected_targets,
+            broadcast_targets=list_active_users(require_telegram_binding=True),
+        ),
+    )
+
+
 @router.get("/admin/users/{username}/edit", response_class=HTMLResponse)
 def admin_edit_user_page(request: Request, username: str):
     if not _is_admin(request):
@@ -344,6 +371,82 @@ def admin_schedule_cancel_request(request: Request, request_id: int):
     except ValueError as error:
         return _build_admin_redirect("/admin/schedule", error=str(error))
     return _build_admin_redirect("/admin/schedule", success="Запрос на замену отменён администратором.")
+
+
+@router.post("/admin/broadcast")
+async def admin_broadcast_send(
+    request: Request,
+    message_html: str = Form(...),
+):
+    if not _is_admin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    normalized_message = (message_html or "").strip()
+    form = await request.form()
+    normalized_target_usernames = [
+        item.strip().lower()
+        for item in str(form.get("target_usernames") or "").split(",")
+        if item.strip()
+    ]
+    if not normalized_message:
+        return templates.TemplateResponse(
+            "admin_broadcast.html",
+            _admin_common_context(
+                request,
+                error_message="Сообщение для рассылки пустое.",
+                broadcast_message=normalized_message,
+                broadcast_target_usernames=normalized_target_usernames,
+                broadcast_targets=list_active_users(require_telegram_binding=True),
+            ),
+        )
+
+    try:
+        result = await send_admin_broadcast(normalized_message, target_usernames=normalized_target_usernames or None)
+    except (ValueError, RuntimeError) as error:
+        return templates.TemplateResponse(
+            "admin_broadcast.html",
+            _admin_common_context(
+                request,
+                error_message=str(error),
+                broadcast_message=normalized_message,
+                broadcast_target_usernames=normalized_target_usernames,
+                broadcast_targets=list_active_users(require_telegram_binding=True),
+            ),
+        )
+    except Exception as error:
+        return templates.TemplateResponse(
+            "admin_broadcast.html",
+            _admin_common_context(
+                request,
+                error_message=f"Ошибка рассылки: {error}",
+                broadcast_message=normalized_message,
+                broadcast_target_usernames=normalized_target_usernames,
+                broadcast_targets=list_active_users(require_telegram_binding=True),
+            ),
+        )
+
+    sent = int(result.get("sent") or 0)
+    failed = result.get("failed") or []
+    total = int(result.get("total") or 0)
+
+    failed_summary = ""
+    if failed:
+        names = ", ".join(item.get("display_name") or item.get("username") or "user" for item in failed[:5])
+        failed_summary = f" Ошибки у {len(failed)} получателей: {names}."
+
+    add_operation_log(
+        event="admin_broadcast",
+        level="INFO",
+        username=(request.session.get("username") or "").strip().lower() or None,
+        status="success" if not failed else "partial",
+        details=f"sent={sent}; total={total}; failed={len(failed)}; targets={','.join(normalized_target_usernames) or 'all'}",
+    )
+
+    return _build_admin_redirect(
+        "/admin/broadcast",
+        success=f"Рассылка завершена. Доставлено: {sent} из {total}.{failed_summary}",
+        targets=",".join(normalized_target_usernames),
+    )
 
 
 @router.post("/admin/users")

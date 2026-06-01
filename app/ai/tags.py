@@ -12,8 +12,8 @@ from app.config import KNOWN_ARTISTS
 from app.database import get_ai_knowledge_base, get_all_entities
 
 # YouTube: теги (keywords) имеют ограничения по длине.
-# Безопасно держать общий объём <= 450–480 символов.
-YOUTUBE_TAGS_MAX_TOTAL_CHARS = 460
+# Для нашего пайплайна держим цель около 490 символов.
+YOUTUBE_TAGS_MAX_TOTAL_CHARS = 490
 MAX_HASHTAGS = 3
 MAX_SEO_TAGS = 22
 
@@ -68,6 +68,10 @@ def _cap_youtube_tags(tags: list[str], max_total_chars: int = YOUTUBE_TAGS_MAX_T
     return out
 
 
+def _seo_joined_len(tags: list[str]) -> int:
+    return len(", ".join(tags))
+
+
 def _extract_artists_from_title(title: str, entities_list: list[str]) -> list[str]:
     tl = title.lower()
     found = []
@@ -92,9 +96,176 @@ def _to_camel_token(s: str) -> str:
     return "".join(p[:1].upper() + p[1:] for p in parts if p)
 
 
+def _extract_title_modifiers(title: str) -> list[str]:
+    source = (title or "").lower()
+    mapping = [
+        ("dark", "dark trap beat"),
+        ("hard", "hard type beat"),
+        ("melodic", "melodic trap type beat"),
+        ("ambient", "ambient type beat"),
+        ("atmospheric", "atmospheric trap beat"),
+        ("ethereal", "ethereal type beat"),
+        ("space", "spacey type beat"),
+        ("cloud", "cloud rap beat"),
+        ("plugg", "plugg type beat"),
+        ("pluggnb", "pluggnb type beat"),
+        ("guitar", "guitar trap type beat"),
+        ("piano", "piano trap beat"),
+        ("emotional", "emotional trap beat"),
+        ("pain", "pain type beat"),
+        ("rage", "rage type beat"),
+        ("drill", "drill type beat"),
+        ("jersey", "jersey club type beat"),
+        ("boom bap", "boom bap type beat"),
+        ("freestyle", "freestyle type beat"),
+        ("underground", "underground trap beat"),
+    ]
+    out: list[str] = []
+    for needle, tag in mapping:
+        if needle in source:
+            out.append(tag)
+    return _dedupe_preserve_order(out)
+
+
+def _build_exact_seo_tags(
+    seed_tags: list[str],
+    *,
+    title: str,
+    artists_in_title: list[str],
+    current_year: int,
+) -> list[str]:
+    cleaned_seed = _dedupe_preserve_order([_clean_seo_tag(x) for x in seed_tags if _clean_seo_tag(x)])
+    main_artists = artists_in_title[:2]
+    related_artists = artists_in_title[2:4]
+    modifiers = _extract_title_modifiers(title)
+
+    required_base = [
+        "type beat",
+        "typebeat",
+        "instrumental",
+        "rap instrumental",
+        f"free type beat {current_year}",
+        f"type beat {current_year}",
+        "trap type beat",
+        "free beat",
+    ]
+
+    artist_block: list[str] = []
+    for artist in main_artists:
+        artist_block.extend(
+            [
+                f"{artist} type beat",
+                f"{artist} type beat free",
+                f"free {artist} type beat",
+                f"{artist} instrumental",
+            ]
+        )
+    if len(main_artists) >= 2:
+        artist_block.extend(
+            [
+                f"{main_artists[0]} x {main_artists[1]} type beat",
+                f"{main_artists[0]} {main_artists[1]} type beat",
+                f"{main_artists[0]} x {main_artists[1]} instrumental",
+            ]
+        )
+
+    related_block = [f"{artist} type beat" for artist in related_artists]
+
+    vibe_block = modifiers + [
+        "dark trap beat",
+        "hard type beat",
+        "melodic trap type beat",
+        "underground trap beat",
+        "ambient type beat",
+        "atmospheric trap beat",
+        "ethereal type beat",
+        "spacey type beat",
+        "cloud rap beat",
+        "plugg type beat",
+        "pluggnb type beat",
+        "guitar trap type beat",
+        "piano trap beat",
+        "emotional trap beat",
+        "pain type beat",
+    ]
+
+    filler_block = [
+        f"free trap type beat {current_year}",
+        "type beat instrumental",
+        "free rap instrumental",
+        "trap instrumental",
+        "hard trap beat",
+        "dark type beat",
+        "free instrumental beat",
+        "viral type beat",
+        "new trap beat",
+        "free trap beat",
+    ]
+
+    candidates = _dedupe_preserve_order(cleaned_seed + required_base + artist_block + related_block + vibe_block + filler_block)
+
+    out: list[str] = []
+    seen_lower: set[str] = set()
+    for candidate in candidates:
+        if len(out) >= MAX_SEO_TAGS:
+            break
+        candidate_lower = candidate.lower()
+        if candidate_lower in seen_lower:
+            continue
+        trial = out + [candidate]
+        if _seo_joined_len(trial) <= YOUTUBE_TAGS_MAX_TOTAL_CHARS:
+            out.append(candidate)
+            seen_lower.add(candidate_lower)
+
+    if len(out) < MAX_SEO_TAGS:
+        compact_fallback = [
+            "trap beat",
+            f"type beat {current_year}",
+            "free type beat",
+            "rap beat",
+            "free instrumental",
+            "dark beat",
+            "hard beat",
+            "melodic beat",
+            "underground beat",
+            "free rap beat",
+            "free trap instrumental",
+            "type beat free",
+        ]
+        for candidate in compact_fallback:
+            if len(out) >= MAX_SEO_TAGS:
+                break
+            candidate_lower = candidate.lower()
+            if candidate_lower in seen_lower:
+                continue
+            trial = out + [candidate]
+            if _seo_joined_len(trial) <= YOUTUBE_TAGS_MAX_TOTAL_CHARS:
+                out.append(candidate)
+                seen_lower.add(candidate_lower)
+
+    if len(out) < MAX_SEO_TAGS:
+        shortest_pool = sorted(
+            _dedupe_preserve_order(candidates + compact_fallback),
+            key=lambda item: (len(item), item.lower()),
+        )
+        for candidate in shortest_pool:
+            if len(out) >= MAX_SEO_TAGS:
+                break
+            candidate_lower = candidate.lower()
+            if candidate_lower in seen_lower:
+                continue
+            trial = out + [candidate]
+            if _seo_joined_len(trial) <= YOUTUBE_TAGS_MAX_TOTAL_CHARS:
+                out.append(candidate)
+                seen_lower.add(candidate_lower)
+
+    return out[:MAX_SEO_TAGS]
+
+
 def _sanitize_ai_output_against_title(
     hashtags: list[str],
     seo_tags: list[str],
+    title: str,
     artists_in_title: list[str],
     all_known_artists: list[str],
     current_year: int,
@@ -115,39 +286,14 @@ def _sanitize_ai_output_against_title(
 
     safe_hashtags = [h for h in hashtags if not has_foreign_artist(h)]
     safe_seo = [t for t in seo_tags if not has_foreign_artist(t)]
-
-    # Ensure required base tags.
-    required_base = [
-        "type beat",
-        "typebeat",
-        "instrumental",
-        "rap instrumental",
-        f"free type beat {current_year}",
-    ]
-    for base in required_base:
-        if base.lower() not in {x.lower() for x in safe_seo}:
-            safe_seo.append(base)
-
-    # Ensure artist-specific tags come from current title artists.
     main_artists = artists_in_title[:2]
-    for a in main_artists:
-        safe_seo.append(f"{a} type beat")
-    if len(main_artists) >= 2:
-        safe_seo.append(f"{main_artists[0]} x {main_artists[1]} type beat")
 
-    fallback_vibes = [
-        "trap type beat",
-        "dark trap beat",
-        "hard type beat",
-        "free beat",
-    ]
-    for vibe in fallback_vibes:
-        if len(safe_seo) >= MAX_SEO_TAGS:
-            break
-        safe_seo.append(vibe)
-
-    safe_seo = _dedupe_preserve_order([_clean_seo_tag(x) for x in safe_seo if _clean_seo_tag(x)])[:MAX_SEO_TAGS]
-    safe_seo = _cap_youtube_tags(safe_seo)
+    safe_seo = _build_exact_seo_tags(
+        safe_seo,
+        title=title,
+        artists_in_title=artists_in_title,
+        current_year=current_year,
+    )
 
     # Rebuild hashtags to keep relevance to current title.
     rebuilt_hashtags: list[str] = [h for h in safe_hashtags if h]
@@ -310,7 +456,7 @@ def generate_youtube_tags(
         "   - emotional trap beat, pain type beat, piano trap beat, guitar trap type beat\n"
         "   Правило: вайбы должны соответствовать ожиданию зрителя, иначе падает удержание.\n\n"
 
-        "7) СТРУКТУРА 15 SEO-ТЕГОВ (РОВНО 15):\n"
+        "7) СТРУКТУРА 22 SEO-ТЕГОВ (РОВНО 22):\n"
         "   A) 4 ОБЯЗАТЕЛЬНЫХ SEARCH-ВАРИАНТА (всегда включай):\n"
         "      - type beat\n"
         "      - typebeat\n"
@@ -343,7 +489,8 @@ def generate_youtube_tags(
         "9) ФОРМАТ ВЫВОДА (СТРОГО):\n"
         "   - Верни ТОЛЬКО валидный JSON по схеме.\n"
         "   - hashtags: ровно 3 строки с #, CamelCase.\n"
-        "   - seo_tags: ровно 15 строк без #.\n"
+        "   - seo_tags: ровно 22 строки без #.\n"
+        f"   - Общая длина seo_tags в строке через запятую должна быть близко к {YOUTUBE_TAGS_MAX_TOTAL_CHARS} символам, но не превышать её.\n"
         "   - artists: список найденных артистов.\n"
         "   - Никакого текста, пояснений или markdown.\n"
         "10) АНТИ-КОПИПАСТ ИЗ HISTORY (СТРОГО):\n"
@@ -362,7 +509,7 @@ def generate_youtube_tags(
             "seo_tags": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": f"Ровно 15 SEO фраз без #. Год если есть - {current_year}."
+                "description": f"Ровно 22 SEO фразы без #. Год если есть - {current_year}. Общая длина близко к {YOUTUBE_TAGS_MAX_TOTAL_CHARS} символам."
             },
             "artists": {
                 "type": "array",
@@ -389,7 +536,7 @@ def generate_youtube_tags(
         "constraints": {
             "hashtags": {"count": 3, "format": "CamelCaseWithHash"},
             "seo_tags": {
-                "count": 15,
+                "count": 22,
                 "format": "Natural Language",
                 "include_year": current_year,
                 "must_include": ["type beat", "typebeat", "instrumental", "rap instrumental", f"free type beat {current_year}"],
@@ -435,11 +582,11 @@ def generate_youtube_tags(
     seo_tags = [_clean_seo_tag(x) for x in raw_seo]
     seo_tags = [x for x in seo_tags if x]
     seo_tags = _dedupe_preserve_order(seo_tags)[:MAX_SEO_TAGS]
-    seo_tags = _cap_youtube_tags(seo_tags)
 
     hashtags, seo_tags = _sanitize_ai_output_against_title(
         hashtags=hashtags,
         seo_tags=seo_tags,
+        title=beat_name,
         artists_in_title=artists_in_title,
         all_known_artists=all_known_artists,
         current_year=current_year,

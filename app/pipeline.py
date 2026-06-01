@@ -27,7 +27,14 @@ class UploadResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def upload_flow(youtube, media_file: str, beat_name: str, gemini_api_key: str, category_id: str = "10") -> UploadResult:
+def upload_flow(
+    youtube,
+    media_file: str,
+    beat_name: str,
+    gemini_api_key: str,
+    category_id: str = "10",
+    channel_id: str | None = None,
+) -> UploadResult:
     """
     Порядок:
     1) Название (beat_name)
@@ -44,7 +51,7 @@ def upload_flow(youtube, media_file: str, beat_name: str, gemini_api_key: str, c
 
     # 1) Gemini tags
     try:
-        ai = generate_youtube_tags(beat_name, api_key=gemini_api_key)
+        ai = generate_youtube_tags(beat_name, api_key=gemini_api_key, channel_id=channel_id)
         hashtags = ai.get("hashtags", [])
         seo_tags = ai.get("seo_tags", [])
     except Exception as e:
@@ -108,6 +115,7 @@ def upload_flow_web(
     media_file: str,
     beat_name: str,
     gemini_api_key: str,
+    channel_id: str | None,
     bpm: str,
     key: str,
     user_data: dict,
@@ -140,7 +148,7 @@ def upload_flow_web(
         seo_tags = seo_tags_override
     else:
         try:
-            ai = generate_youtube_tags(beat_name, api_key=gemini_api_key)
+            ai = generate_youtube_tags(beat_name, api_key=gemini_api_key, channel_id=channel_id)
             hashtags = ai.get("hashtags", [])
             seo_tags = ai.get("seo_tags", [])
         except Exception as e:
@@ -221,6 +229,7 @@ def upload_flow_web(
         hashtags=hashtags,  # список строк
         seo_tags=seo_tags,  # список строк
         scheduled_publish_at=publish_at,
+        channel_id=channel_id,
     )
 
     return UploadResult(

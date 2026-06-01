@@ -2,6 +2,7 @@ import json
 import re
 import os
 import datetime
+from dataclasses import dataclass
 from typing import Any
 
 from google import genai
@@ -18,8 +19,123 @@ MAX_HASHTAGS = 3
 MAX_SEO_TAGS = 22
 
 
+@dataclass(frozen=True)
+class ChannelAIGuide:
+    profile_key: str
+    label: str
+    summary: str
+    core_artists: list[str]
+    related_pool: list[str]
+    preferred_vibes: list[str]
+    forbidden_drift: list[str]
+
+
+@dataclass(frozen=True)
+class TitleAnalysis:
+    raw_title: str
+    normalized_title: str
+    quoted_name: str
+    artists_in_title: list[str]
+    title_modifiers: list[str]
+    detected_vibes: list[str]
+    format_tokens: list[str]
+    producer_tokens: list[str]
+
+
+@dataclass(frozen=True)
+class GenerationPlan:
+    anchor_artists: list[str]
+    related_candidates: list[str]
+    vibe_targets: list[str]
+    search_targets: list[str]
+    priority_titles: list[str]
+    notes: list[str]
+
+
+@dataclass(frozen=True)
+class ChannelSignals:
+    audience_targets: list[str]
+    trend_related: list[str]
+    trend_vibes: list[str]
+    feedback_tags: list[str]
+    cold_start_mode: bool
+
+
+def _resolve_channel_ai_guide(channel_id: str | None) -> ChannelAIGuide:
+    try:
+        from app.youtube.channels import get_default_youtube_channel_id, get_youtube_channel
+
+        default_channel_id = get_default_youtube_channel_id()
+        selected_channel = get_youtube_channel(channel_id or None)
+        selected_title = selected_channel.title
+        is_default = selected_channel.channel_id == default_channel_id
+    except Exception:
+        default_channel_id = "main"
+        selected_title = "SevenLab — Первый"
+        is_default = (channel_id or "").strip() in {"", "main"}
+
+    if is_default:
+        return ChannelAIGuide(
+            profile_key="sevenlab_main",
+            label=selected_title,
+            summary="Main Trap channel focused on darker, melodic, atlanta-style mainstream trap.",
+            core_artists=["Future", "Don Toliver", "Lil Baby", "Travis Scott", "Gunna", "21 Savage"],
+            related_pool=["Metro Boomin", "Southside", "Drake", "Kanye West"],
+            preferred_vibes=[
+                "modern trap beat",
+                "dark trap beat",
+                "melodic trap type beat",
+                "atlanta trap beat",
+                "pain trap beat",
+                "atmospheric trap beat",
+            ],
+            forbidden_drift=[
+                "plugg",
+                "glo",
+                "osamason",
+                "lazer dim 700",
+                "swapa",
+                "experimental",
+                "electronic",
+            ],
+        )
+
+    return ChannelAIGuide(
+        profile_key="sevenlabx_alt",
+        label=selected_title,
+        summary="Alternative trap channel focused on underground, plugg, glo, ambient and experimental aesthetics.",
+        core_artists=["Playboi Carti", "Osamason", "Lucki", "Lazer Dim 700", "Swapa"],
+        related_pool=["Ambient", "Alternative", "Glo", "Experimental"],
+        preferred_vibes=[
+            "alternative type beat",
+            "ambient type beat",
+            "plugg type beat",
+            "electronic type beat",
+            "glo type beat",
+            "experimental type beat",
+        ],
+        forbidden_drift=[
+            "future",
+            "lil baby",
+            "gunna",
+            "atlanta trap",
+            "pain trap",
+            "don toliver",
+            "21 savage",
+        ],
+    )
+
+
 def _normalize_space(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
+
+
+def _normalize_title_for_ai(title: str) -> str:
+    text = (title or "").replace("—", "-").replace("–", "-")
+    text = re.sub(r"\s*[xX]\s*", " x ", text)
+    text = re.sub(r"\s*[/|]\s*", " ", text)
+    text = re.sub(r"\[(free|free for profit|non profit)\]", "[FREE]", text, flags=re.IGNORECASE)
+    return _normalize_space(text)
 
 
 def _dedupe_preserve_order(items: list[str]) -> list[str]:
@@ -103,12 +219,16 @@ def _extract_title_modifiers(title: str) -> list[str]:
         ("hard", "hard type beat"),
         ("melodic", "melodic trap type beat"),
         ("ambient", "ambient type beat"),
+        ("alternative", "alternative type beat"),
         ("atmospheric", "atmospheric trap beat"),
         ("ethereal", "ethereal type beat"),
         ("space", "spacey type beat"),
         ("cloud", "cloud rap beat"),
         ("plugg", "plugg type beat"),
         ("pluggnb", "pluggnb type beat"),
+        ("electronic", "electronic type beat"),
+        ("experimental", "experimental type beat"),
+        ("glo", "glo type beat"),
         ("guitar", "guitar trap type beat"),
         ("piano", "piano trap beat"),
         ("emotional", "emotional trap beat"),
@@ -127,12 +247,393 @@ def _extract_title_modifiers(title: str) -> list[str]:
     return _dedupe_preserve_order(out)
 
 
+def _extract_format_tokens(title: str) -> list[str]:
+    source = (title or "").lower()
+    mapping = [
+        ("type beat", "type beat"),
+        ("beat switch", "beat switch"),
+        ("instrumental", "instrumental"),
+        ("free", "free"),
+        ("free for profit", "free for profit"),
+        ("non profit", "non profit"),
+        ("loop kit", "loop kit"),
+        ("sample", "sample"),
+    ]
+    out: list[str] = []
+    for needle, token in mapping:
+        if needle in source:
+            out.append(token)
+    return _dedupe_preserve_order(out)
+
+
+def _extract_producer_tokens(title: str) -> list[str]:
+    source = title or ""
+    matches = re.findall(r"\(([^)]*prod\.[^)]*)\)", source, flags=re.IGNORECASE)
+    return _dedupe_preserve_order([_normalize_space(match) for match in matches if _normalize_space(match)])
+
+
+def _map_modifiers_to_vibes(modifiers: list[str], channel_guide: ChannelAIGuide | None = None) -> list[str]:
+    vibe_map = {
+        "dark trap beat": "dark trap",
+        "hard type beat": "hard trap",
+        "melodic trap type beat": "melodic trap",
+        "ambient type beat": "ambient",
+        "alternative type beat": "alternative",
+        "atmospheric trap beat": "atmospheric",
+        "ethereal type beat": "ethereal",
+        "spacey type beat": "spacey",
+        "cloud rap beat": "cloud rap",
+        "plugg type beat": "plugg",
+        "pluggnb type beat": "pluggnb",
+        "electronic type beat": "electronic",
+        "experimental type beat": "experimental",
+        "glo type beat": "glo",
+        "guitar trap type beat": "guitar trap",
+        "piano trap beat": "piano trap",
+        "emotional trap beat": "emotional",
+        "pain type beat": "pain",
+        "rage type beat": "rage",
+        "drill type beat": "drill",
+        "jersey club type beat": "jersey club",
+        "boom bap type beat": "boom bap",
+        "underground trap beat": "underground",
+    }
+    detected = [vibe_map[x] for x in modifiers if x in vibe_map]
+    if channel_guide:
+        detected.extend([_normalize_space(v.replace("type beat", "").replace("beat", "")) for v in channel_guide.preferred_vibes[:2]])
+    return _dedupe_preserve_order([x for x in detected if x])
+
+
+def _analyze_title(
+    title: str,
+    *,
+    all_known_artists: list[str],
+    channel_guide: ChannelAIGuide | None = None,
+) -> TitleAnalysis:
+    normalized_title = _normalize_title_for_ai(title)
+    modifiers = _extract_title_modifiers(normalized_title)
+    return TitleAnalysis(
+        raw_title=title or "",
+        normalized_title=normalized_title,
+        quoted_name=_extract_quoted_name(normalized_title),
+        artists_in_title=_extract_artists_from_title(normalized_title, all_known_artists),
+        title_modifiers=modifiers,
+        detected_vibes=_map_modifiers_to_vibes(modifiers, channel_guide=channel_guide),
+        format_tokens=_extract_format_tokens(normalized_title),
+        producer_tokens=_extract_producer_tokens(normalized_title),
+    )
+
+
+def _score_history_case(case: dict[str, Any], analysis: TitleAnalysis, channel_guide: ChannelAIGuide | None = None) -> int:
+    title = (case.get("title") or "").lower()
+    seo_tags = (case.get("seo_tags") or "").lower()
+    score = int(case.get("views") or 0) // 100
+
+    for artist in analysis.artists_in_title[:2]:
+        artist_lower = artist.lower()
+        if artist_lower in title:
+            score += 35
+        if artist_lower in seo_tags:
+            score += 20
+
+    for vibe in analysis.detected_vibes[:4]:
+        vibe_lower = vibe.lower()
+        if vibe_lower in title or vibe_lower in seo_tags:
+            score += 10
+
+    if analysis.quoted_name and analysis.quoted_name.lower() in title:
+        score -= 25
+
+    if channel_guide:
+        case_channel = (case.get("channel_id") or "").strip()
+        if case_channel:
+            if case_channel == "main" and channel_guide.profile_key == "sevenlab_main":
+                score += 20
+            elif case_channel and channel_guide.profile_key == "sevenlabx_alt" and case_channel != "main":
+                score += 20
+        for forbidden in channel_guide.forbidden_drift:
+            if forbidden and forbidden.lower() in seo_tags and forbidden.lower() not in analysis.normalized_title.lower():
+                score -= 20
+
+    return score
+
+
+def _select_priority_history_cases(
+    cases: list[dict[str, Any]],
+    *,
+    analysis: TitleAnalysis,
+    channel_guide: ChannelAIGuide | None = None,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    ranked = sorted(
+        cases,
+        key=lambda case: (
+            _score_history_case(case, analysis, channel_guide=channel_guide),
+            int(case.get("views") or 0),
+        ),
+        reverse=True,
+    )
+    return ranked[:limit]
+
+
+def _build_generation_plan(
+    *,
+    analysis: TitleAnalysis,
+    channel_guide: ChannelAIGuide,
+    channel_best_cases: list[dict[str, Any]],
+) -> GenerationPlan:
+    anchor_artists = analysis.artists_in_title[:2]
+    related_candidates = [
+        artist for artist in channel_guide.related_pool
+        if artist.lower() not in {x.lower() for x in analysis.artists_in_title}
+    ][:3]
+    vibe_targets = _dedupe_preserve_order(analysis.title_modifiers + channel_guide.preferred_vibes)[:6]
+    search_targets = [
+        "type beat",
+        "typebeat",
+        "instrumental",
+        "rap instrumental",
+        "free type beat",
+        "trap type beat",
+    ]
+    priority_titles = [case.get("title", "") for case in channel_best_cases[:3] if case.get("title")]
+    notes: list[str] = []
+    if analysis.quoted_name:
+        notes.append(f'ignore quoted name: "{analysis.quoted_name}"')
+    if analysis.producer_tokens:
+        notes.append("ignore producer tokens in seo tags")
+    if analysis.format_tokens:
+        notes.append("respect title format markers: " + ", ".join(analysis.format_tokens))
+    return GenerationPlan(
+        anchor_artists=anchor_artists,
+        related_candidates=related_candidates,
+        vibe_targets=vibe_targets,
+        search_targets=search_targets,
+        priority_titles=priority_titles,
+        notes=notes,
+    )
+
+
+def _derive_feedback_signals(
+    channel_best_cases: list[dict[str, Any]],
+    *,
+    channel_guide: ChannelAIGuide,
+    analysis: TitleAnalysis,
+) -> list[str]:
+    counts: dict[str, int] = {}
+    allowed_artists = {artist.lower() for artist in analysis.artists_in_title}
+    tracked_artists = {
+        x.lower()
+        for x in (analysis.artists_in_title + channel_guide.core_artists + channel_guide.related_pool)
+        if x
+    }
+    allowed_fragments = {
+        x.lower()
+        for x in (
+            channel_guide.related_pool
+            + channel_guide.core_artists
+            + channel_guide.preferred_vibes
+            + analysis.detected_vibes
+        )
+        if x
+    }
+    for case in channel_best_cases:
+        for raw_tag in str(case.get("seo_tags") or "").split(","):
+            tag = _clean_seo_tag(raw_tag)
+            if not tag:
+                continue
+            tag_lower = tag.lower()
+            mentioned_artist_tokens = [artist for artist in tracked_artists if artist in tag_lower]
+            if mentioned_artist_tokens and any(artist not in allowed_artists for artist in mentioned_artist_tokens):
+                continue
+            if not any(fragment in tag_lower for fragment in allowed_fragments):
+                continue
+            counts[tag] = counts.get(tag, 0) + 1
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], len(item[0]), item[0].lower()))
+    return [tag for tag, _ in ranked[:6]]
+
+
+def _derive_trend_signals(
+    internet_artist_research: dict[str, Any],
+    *,
+    channel_guide: ChannelAIGuide,
+    analysis: TitleAnalysis,
+) -> tuple[list[str], list[str]]:
+    text_blob = " ".join(
+        " ".join(
+            filter(
+                None,
+                [
+                    item.get("title", ""),
+                    item.get("snippet", ""),
+                ],
+            )
+        )
+        for items in internet_artist_research.values()
+        for item in (items or [])
+        if isinstance(item, dict)
+    ).lower()
+
+    non_artist_related_terms = {"ambient", "alternative", "glo", "experimental", "electronic"}
+    allowed_artists = {artist.lower() for artist in analysis.artists_in_title}
+    trend_related: list[str] = []
+    for artist in channel_guide.related_pool + channel_guide.core_artists:
+        if (
+            artist
+            and artist.lower() in text_blob
+            and artist.lower() not in non_artist_related_terms
+            and artist.lower() in allowed_artists
+        ):
+            trend_related.append(f"{artist} type beat")
+
+    trend_vibes: list[str] = []
+    for vibe in channel_guide.preferred_vibes:
+        vibe_key = vibe.lower().replace(" type beat", "").replace(" beat", "").strip()
+        if vibe_key and vibe_key in text_blob:
+            trend_vibes.append(vibe)
+
+    return _dedupe_preserve_order(trend_related)[:4], _dedupe_preserve_order(trend_vibes)[:4]
+
+
+def _build_channel_signals(
+    *,
+    analysis: TitleAnalysis,
+    channel_guide: ChannelAIGuide,
+    channel_best_cases: list[dict[str, Any]],
+    internet_artist_research: dict[str, Any],
+) -> ChannelSignals:
+    trend_related, trend_vibes = _derive_trend_signals(
+        internet_artist_research,
+        channel_guide=channel_guide,
+        analysis=analysis,
+    )
+    feedback_tags = _derive_feedback_signals(
+        channel_best_cases,
+        channel_guide=channel_guide,
+        analysis=analysis,
+    )
+    audience_targets = _dedupe_preserve_order(
+        analysis.title_modifiers
+        + channel_guide.preferred_vibes
+        + trend_vibes
+        + feedback_tags
+    )[:8]
+    cold_start_mode = len(channel_best_cases) < 3
+    return ChannelSignals(
+        audience_targets=audience_targets,
+        trend_related=trend_related,
+        trend_vibes=trend_vibes,
+        feedback_tags=feedback_tags,
+        cold_start_mode=cold_start_mode,
+    )
+
+
+def _classify_seo_candidate(
+    candidate: str,
+    *,
+    artists_in_title: list[str],
+    related_artists: list[str],
+    channel_guide: ChannelAIGuide | None = None,
+) -> str:
+    text = (candidate or "").lower()
+    if text in {"type beat", "typebeat", "instrumental", "rap instrumental"}:
+        return "search"
+    if "free" in text or re.search(r"\b20\d{2}\b", text):
+        return "free"
+    if any(artist.lower() in text for artist in artists_in_title):
+        return "artist"
+    if any(artist.lower() in text for artist in related_artists):
+        return "related"
+    if channel_guide and any(vibe.lower() in text for vibe in channel_guide.preferred_vibes):
+        return "vibe"
+    if "beat" in text:
+        return "vibe"
+    return "general"
+
+
+def _filter_title_safe_tag_candidates(
+    tags: list[str],
+    *,
+    title: str,
+    artists_in_title: list[str],
+    all_known_artists: list[str],
+    channel_guide: ChannelAIGuide | None = None,
+) -> list[str]:
+    allowed_artists = {artist.lower() for artist in artists_in_title}
+    title_lower = (title or "").lower()
+    safe: list[str] = []
+    for tag in tags:
+        cleaned = _clean_seo_tag(tag)
+        if not cleaned:
+            continue
+        mentioned = _find_known_artists_in_text(cleaned, all_known_artists)
+        if any(artist.lower() not in allowed_artists for artist in mentioned):
+            continue
+        if channel_guide:
+            lowered = cleaned.lower()
+            forbidden = False
+            for token in channel_guide.forbidden_drift:
+                normalized = (token or "").strip().lower()
+                if normalized and normalized in lowered and normalized not in title_lower:
+                    forbidden = True
+                    break
+            if forbidden:
+                continue
+        safe.append(cleaned)
+    return _dedupe_preserve_order(safe)
+
+
+def _sanitize_channel_signals_for_title(
+    signals: ChannelSignals | None,
+    *,
+    title: str,
+    artists_in_title: list[str],
+    all_known_artists: list[str],
+    channel_guide: ChannelAIGuide | None = None,
+) -> ChannelSignals | None:
+    if signals is None:
+        return None
+    return ChannelSignals(
+        audience_targets=_filter_title_safe_tag_candidates(
+            signals.audience_targets,
+            title=title,
+            artists_in_title=artists_in_title,
+            all_known_artists=all_known_artists,
+            channel_guide=channel_guide,
+        ),
+        trend_related=_filter_title_safe_tag_candidates(
+            signals.trend_related,
+            title=title,
+            artists_in_title=artists_in_title,
+            all_known_artists=all_known_artists,
+            channel_guide=channel_guide,
+        ),
+        trend_vibes=_filter_title_safe_tag_candidates(
+            signals.trend_vibes,
+            title=title,
+            artists_in_title=artists_in_title,
+            all_known_artists=all_known_artists,
+            channel_guide=channel_guide,
+        ),
+        feedback_tags=_filter_title_safe_tag_candidates(
+            signals.feedback_tags,
+            title=title,
+            artists_in_title=artists_in_title,
+            all_known_artists=all_known_artists,
+            channel_guide=channel_guide,
+        ),
+        cold_start_mode=signals.cold_start_mode,
+    )
+
+
 def _build_exact_seo_tags(
     seed_tags: list[str],
     *,
     title: str,
     artists_in_title: list[str],
     current_year: int,
+    channel_guide: ChannelAIGuide | None = None,
+    signals: ChannelSignals | None = None,
 ) -> list[str]:
     cleaned_seed = _dedupe_preserve_order([_clean_seo_tag(x) for x in seed_tags if _clean_seo_tag(x)])
     main_artists = artists_in_title[:2]
@@ -170,8 +671,12 @@ def _build_exact_seo_tags(
         )
 
     related_block = [f"{artist} type beat" for artist in related_artists]
+    if signals:
+        related_block = _dedupe_preserve_order(related_block + signals.trend_related)
 
-    vibe_block = modifiers + [
+    profile_vibes = list(channel_guide.preferred_vibes) if channel_guide else []
+    signal_vibes = list(signals.audience_targets + signals.trend_vibes) if signals else []
+    vibe_block = modifiers + signal_vibes + profile_vibes + [
         "dark trap beat",
         "hard type beat",
         "melodic trap type beat",
@@ -187,6 +692,10 @@ def _build_exact_seo_tags(
         "piano trap beat",
         "emotional trap beat",
         "pain type beat",
+        "alternative type beat",
+        "electronic type beat",
+        "experimental type beat",
+        "glo type beat",
     ]
 
     filler_block = [
@@ -197,12 +706,34 @@ def _build_exact_seo_tags(
         "hard trap beat",
         "dark type beat",
         "free instrumental beat",
-        "viral type beat",
-        "new trap beat",
         "free trap beat",
     ]
 
-    candidates = _dedupe_preserve_order(cleaned_seed + required_base + artist_block + related_block + vibe_block + filler_block)
+    feedback_block = list(signals.feedback_tags) if signals else []
+    candidates = _dedupe_preserve_order(cleaned_seed + feedback_block + required_base + artist_block + related_block + vibe_block + filler_block)
+
+    bucket_order = ["search", "artist", "vibe", "related", "free", "general"]
+    bucketed: dict[str, list[str]] = {bucket: [] for bucket in bucket_order}
+    for candidate in candidates:
+        bucket = _classify_seo_candidate(
+            candidate,
+            artists_in_title=artists_in_title,
+            related_artists=related_artists,
+            channel_guide=channel_guide,
+        )
+        bucketed.setdefault(bucket, []).append(candidate)
+
+    audience_first_order = ["search", "artist", "vibe", "related", "free", "general"]
+    if signals and signals.cold_start_mode:
+        audience_first_order = ["search", "artist", "vibe", "related", "vibe", "free", "general"]
+    round_robin_candidates: list[str] = []
+    max_len = max((len(bucketed.get(bucket, [])) for bucket in bucketed), default=0)
+    for index in range(max_len):
+        for bucket in audience_first_order:
+            items = bucketed.get(bucket, [])
+            if index < len(items):
+                round_robin_candidates.append(items[index])
+    candidates = _dedupe_preserve_order(round_robin_candidates + candidates)
 
     out: list[str] = []
     seen_lower: set[str] = set()
@@ -259,6 +790,38 @@ def _build_exact_seo_tags(
                 out.append(candidate)
                 seen_lower.add(candidate_lower)
 
+    if signals and channel_guide:
+        audience_present = any(
+            target.lower() in ", ".join(out).lower()
+            for target in signals.audience_targets[:4]
+        )
+        if not audience_present:
+            for candidate in _dedupe_preserve_order(signals.audience_targets + channel_guide.preferred_vibes):
+                candidate_lower = candidate.lower()
+                if candidate_lower in seen_lower:
+                    continue
+                if len(out) >= MAX_SEO_TAGS:
+                    replaced = False
+                    for idx in range(len(out) - 1, -1, -1):
+                        existing = out[idx].lower()
+                        if existing not in {"type beat", "typebeat", "instrumental", "rap instrumental"} and not any(
+                            artist.lower() in existing for artist in artists_in_title[:2]
+                        ):
+                            trial = out[:idx] + out[idx + 1:] + [candidate]
+                            if _seo_joined_len(trial) <= YOUTUBE_TAGS_MAX_TOTAL_CHARS:
+                                out = trial
+                                seen_lower.add(candidate_lower)
+                                replaced = True
+                                break
+                    if replaced:
+                        break
+                else:
+                    trial = out + [candidate]
+                    if _seo_joined_len(trial) <= YOUTUBE_TAGS_MAX_TOTAL_CHARS:
+                        out.append(candidate)
+                        seen_lower.add(candidate_lower)
+                        break
+
     return out[:MAX_SEO_TAGS]
 
 
@@ -269,6 +832,8 @@ def _sanitize_ai_output_against_title(
     artists_in_title: list[str],
     all_known_artists: list[str],
     current_year: int,
+    channel_guide: ChannelAIGuide | None = None,
+    signals: ChannelSignals | None = None,
 ) -> tuple[list[str], list[str]]:
     """
     Hard guardrails:
@@ -284,16 +849,59 @@ def _sanitize_ai_output_against_title(
                 return True
         return False
 
+    def has_forbidden_drift(text: str) -> bool:
+        if not channel_guide:
+            return False
+        lowered = (text or "").lower()
+        title_lower = (title or "").lower()
+        for token in channel_guide.forbidden_drift:
+            normalized = (token or "").strip().lower()
+            if normalized and normalized in lowered and normalized not in title_lower:
+                return True
+        return False
+
     safe_hashtags = [h for h in hashtags if not has_foreign_artist(h)]
-    safe_seo = [t for t in seo_tags if not has_foreign_artist(t)]
+    safe_seo = [t for t in seo_tags if not has_foreign_artist(t) and not has_forbidden_drift(t)]
     main_artists = artists_in_title[:2]
+    safe_signals = _sanitize_channel_signals_for_title(
+        signals,
+        title=title,
+        artists_in_title=artists_in_title,
+        all_known_artists=all_known_artists,
+        channel_guide=channel_guide,
+    )
 
     safe_seo = _build_exact_seo_tags(
         safe_seo,
         title=title,
         artists_in_title=artists_in_title,
         current_year=current_year,
+        channel_guide=channel_guide,
+        signals=safe_signals,
     )
+    safe_seo = _filter_title_safe_tag_candidates(
+        safe_seo,
+        title=title,
+        artists_in_title=artists_in_title,
+        all_known_artists=all_known_artists,
+        channel_guide=channel_guide,
+    )
+    if len(safe_seo) < MAX_SEO_TAGS:
+        safe_seo = _build_exact_seo_tags(
+            safe_seo,
+            title=title,
+            artists_in_title=artists_in_title,
+            current_year=current_year,
+            channel_guide=channel_guide,
+            signals=safe_signals,
+        )
+        safe_seo = _filter_title_safe_tag_candidates(
+            safe_seo,
+            title=title,
+            artists_in_title=artists_in_title,
+            all_known_artists=all_known_artists,
+            channel_guide=channel_guide,
+        )[:MAX_SEO_TAGS]
 
     # Rebuild hashtags to keep relevance to current title.
     rebuilt_hashtags: list[str] = [h for h in safe_hashtags if h]
@@ -361,6 +969,7 @@ def generate_youtube_tags(
     beat_name: str,
     api_key: str,
     model: str = "gemini-2.5-flash",
+    channel_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Возвращает dict:
@@ -384,10 +993,14 @@ def generate_youtube_tags(
 
     # 1. Получаем ВСЕХ артистов из базы (и старых, и тех, что добавили битмари)
     all_known_artists = get_all_entities()
+    channel_guide = _resolve_channel_ai_guide(channel_id)
+    title_analysis = _analyze_title(
+        beat_name,
+        all_known_artists=all_known_artists,
+        channel_guide=channel_guide,
+    )
+    artists_in_title = title_analysis.artists_in_title
 
-    # 2. Обновляем вспомогательную функцию экстракции (чтобы она видела новых артистов)
-    # Передаем список из базы внутрь функции
-    artists_in_title = _extract_artists_from_title(beat_name, all_known_artists)
     # Интернет-контекст: для 1 артиста — ищем его, для 2+ артистов — ищем по каждому из первых двух
     primary_artists_for_research = artists_in_title[:2] if len(artists_in_title) >= 2 else artists_in_title[:1]
     internet_artist_research = _collect_artist_research(primary_artists_for_research)
@@ -403,16 +1016,53 @@ def generate_youtube_tags(
     # Определяем текущий год
     current_year = datetime.datetime.now().year
 
-    best_cases = get_ai_knowledge_base()
+    channel_best_cases_raw = get_ai_knowledge_base(channel_id=channel_id, limit=14)
+    global_best_cases = get_ai_knowledge_base(limit=8)
+    channel_best_cases = _select_priority_history_cases(
+        channel_best_cases_raw,
+        analysis=title_analysis,
+        channel_guide=channel_guide,
+        limit=8,
+    )
+    channel_signals = _build_channel_signals(
+        analysis=title_analysis,
+        channel_guide=channel_guide,
+        channel_best_cases=channel_best_cases,
+        internet_artist_research=internet_artist_research,
+    )
+    generation_plan = _build_generation_plan(
+        analysis=title_analysis,
+        channel_guide=channel_guide,
+        channel_best_cases=channel_best_cases,
+    )
 
-    experience_report = ""
-    for case in best_cases:
-        experience_report += f"- HIT: {case['title']} | TAGS: {case['seo_tags']} | VIEWS: {case['views']}\n"
+    channel_experience_report = ""
+    for case in channel_best_cases:
+        channel_experience_report += (
+            f"- HIT: {case['title']} | TAGS: {case['seo_tags']} | "
+            f"VIEWS: {case['views']} | CHANNEL: {case.get('channel_id') or 'legacy_main'}\n"
+        )
+
+    global_experience_report = ""
+    for case in global_best_cases:
+        global_experience_report += (
+            f"- GLOBAL: {case['title']} | TAGS: {case['seo_tags']} | "
+            f"VIEWS: {case['views']} | CHANNEL: {case.get('channel_id') or 'legacy_main'}\n"
+        )
+    channel_experience_block = channel_experience_report or "- пока мало истории по этому каналу\n"
+    global_experience_block = global_experience_report or "- общих паттернов пока нет\n"
 
     system_instruction = (
         "Ты — узкоспециализированный ИИ-аналитик по YouTube SEO для Type Beat каналов.\n"
         "Твоя цель: сгенерировать максимально кликабельные и релевантные SEO-теги, повторяя удачные паттерны прошлых видео, но без мусора и без нерелевантных артистов.\n\n"
-        f"ИСТОРИЯ УСПЕХА ТВОЕГО КАНАЛА (ДАННЫЕ ДЛЯ ОБУЧЕНИЯ):\n{experience_report}\n\n"
+        f"АКТИВНЫЙ КАНАЛ: {channel_guide.label}\n"
+        f"ПОЗИЦИОНИРОВАНИЕ КАНАЛА: {channel_guide.summary}\n"
+        f"ОСНОВНЫЕ АРТИСТЫ КАНАЛА: {', '.join(channel_guide.core_artists)}\n"
+        f"СМЕЖНЫЙ ПУЛ КАНАЛА: {', '.join(channel_guide.related_pool)}\n"
+        f"ПРЕДПОЧТИТЕЛЬНЫЕ ВАЙБЫ: {', '.join(channel_guide.preferred_vibes)}\n"
+        f"ЗАПРЕЩЁННЫЙ DRIFT: {', '.join(channel_guide.forbidden_drift)}\n\n"
+        f"ИСТОРИЯ УСПЕХА АКТИВНОГО КАНАЛА (ПРИОРИТЕТ №1):\n{channel_experience_block}\n"
+        f"ОБЩИЕ УСПЕШНЫЕ ПАТТЕРНЫ СЕТКИ (ПРИОРИТЕТ №2):\n{global_experience_block}\n\n"
 
         "ВАЖНО О ТЕГАХ (КОНТЕКСТ 2026):\n"
         "YouTube-теги играют второстепенную роль и нужны как страховка для поиска: варианты написания, опечатки, слитное/раздельное написание.\n"
@@ -433,11 +1083,24 @@ def generate_youtube_tags(
         "   - Если совпал модификатор (Beat Switch / Dark / Hard / Freestyle / Ambient / Rage / Pluggnb / Cloud / Guitar / Piano / Melodic / Emotional) — добавь 1–3 тега, усиливающих именно этот модификатор.\n"
         "   - Если совпадений нет — возьми структуру тегов самого популярного видео и адаптируй под текущих артистов и модификаторы.\n\n"
 
+        "3.1) TITLE_ANALYSIS И GENERATION_PLAN — ЭТО ТВОЯ ОСНОВА:\n"
+        "   - Используй normalized_video_title вместо сырого заголовка, если в нём чище структура.\n"
+        "   - Сначала ориентируйся на generation_plan.anchor_artists и generation_plan.vibe_targets.\n"
+        "   - generation_plan.related_candidates важнее случайных интернет-находок.\n"
+        "   - generation_plan.priority_titles — это лучшие референсы текущего канала, а не общий ориентир по всей базе.\n\n"
+
+        "3.2) CHANNEL_SIGNALS И AUDIENCE-FIT:\n"
+        "   - channel_signals.audience_targets показывают, какие vibe/seo направления для этого канала сейчас наиболее уместны.\n"
+        "   - channel_signals.feedback_tags — это channel-safe теги, которые уже встречались в сильной истории канала.\n"
+        "   - channel_signals.trend_related и channel_signals.trend_vibes — это свежие сигналы из internet research, но они вторичны к правилам канала.\n"
+        "   - Если cold_start_mode = true, сильнее опирайся на selected_channel_profile и channel_signals, а не на sparse history.\n\n"
+
         "4) ГЛАВНАЯ ФИШКА: СМЕЖНЫЕ АРТИСТЫ И ЖАНРЫ ДОЛЖНЫ БЫТЬ ТОЧНЫМИ:\n"
         "   - Добавляй только тех смежных артистов, которые реально слушаются одной аудиторией с основными артистами.\n"
         "   - Смежные артисты должны быть МАКСИМАЛЬНО близкими по сцене/саунду.\n"
         "   - Смежные жанры/вайбы должны подходить под этих артистов.\n"
         "   - Никогда не расширяй аудиторию нерелевантными жанрами.\n\n"
+        "   - При конфликте используй рамки активного канала: related artists и vibe tags обязаны соответствовать профилю канала.\n\n"
 
         "5) КАК ВЫБИРАТЬ СМЕЖНЫХ АРТИСТОВ (RELATED):\n"
         "   - Возьми 2–3 related artists, ТОЛЬКО из context_valid_artists.\n"
@@ -496,6 +1159,7 @@ def generate_youtube_tags(
         "10) АНТИ-КОПИПАСТ ИЗ HISTORY (СТРОГО):\n"
         "   - Нельзя переносить артистов из хитов-референсов, если их нет в текущем title.\n"
         "   - Если в title нет Drake, Don Toliver, Future и т.д. — эти имена запрещены в hashtags/seo_tags.\n"
+        "   - Если тег уводит в forbidden drift активного канала, он запрещён.\n"
     )
 
     response_schema = {
@@ -522,16 +1186,52 @@ def generate_youtube_tags(
 
     prompt = {
         "action": "Generate metadata",
+        "selected_channel_id": channel_id or "",
+        "selected_channel_label": channel_guide.label,
+        "selected_channel_profile": {
+            "profile_key": channel_guide.profile_key,
+            "summary": channel_guide.summary,
+            "core_artists": channel_guide.core_artists,
+            "related_pool": channel_guide.related_pool,
+            "preferred_vibes": channel_guide.preferred_vibes,
+            "forbidden_drift": channel_guide.forbidden_drift,
+        },
         "video_title": beat_name,
+        "normalized_video_title": title_analysis.normalized_title,
+        "title_analysis": {
+            "quoted_name": title_analysis.quoted_name,
+            "artists_in_title": title_analysis.artists_in_title,
+            "title_modifiers": title_analysis.title_modifiers,
+            "detected_vibes": title_analysis.detected_vibes,
+            "format_tokens": title_analysis.format_tokens,
+            "producer_tokens": title_analysis.producer_tokens,
+        },
         "context_valid_artists": all_known_artists,
         "detected_in_title": artists_in_title,
         "internet_artist_research": internet_artist_research,
+        "channel_history_hits": channel_best_cases,
+        "global_success_patterns": global_best_cases,
+        "channel_signals": {
+            "audience_targets": channel_signals.audience_targets,
+            "trend_related": channel_signals.trend_related,
+            "trend_vibes": channel_signals.trend_vibes,
+            "feedback_tags": channel_signals.feedback_tags,
+            "cold_start_mode": channel_signals.cold_start_mode,
+        },
+        "generation_plan": {
+            "anchor_artists": generation_plan.anchor_artists,
+            "related_candidates": generation_plan.related_candidates,
+            "vibe_targets": generation_plan.vibe_targets,
+            "search_targets": generation_plan.search_targets,
+            "priority_titles": generation_plan.priority_titles,
+            "notes": generation_plan.notes,
+        },
         "research_policy": {
             "primary_artists_used": primary_artists_for_research,
             "if_two_artists_found": "find_related_for_each_main_artist",
             "related_per_main_artist": 2
         },
-        "forbidden_name_in_quotes": _extract_quoted_name(beat_name),
+        "forbidden_name_in_quotes": title_analysis.quoted_name,
         "banned_seo_exact": ["kellmi", "spacech1ld"],
         "constraints": {
             "hashtags": {"count": 3, "format": "CamelCaseWithHash"},
@@ -586,19 +1286,33 @@ def generate_youtube_tags(
     hashtags, seo_tags = _sanitize_ai_output_against_title(
         hashtags=hashtags,
         seo_tags=seo_tags,
-        title=beat_name,
+        title=title_analysis.normalized_title,
         artists_in_title=artists_in_title,
         all_known_artists=all_known_artists,
         current_year=current_year,
+        channel_guide=channel_guide,
+        signals=channel_signals,
     )
 
     artists_out = [_normalize_space(x) for x in raw_artists if _normalize_space(x)]
-    artists_out = _dedupe_preserve_order(artists_out)
+    artists_out = _dedupe_preserve_order(artists_out) or title_analysis.artists_in_title
 
     return {
         "artists": artists_out,
         "hashtags": hashtags,
         "seo_tags": seo_tags,
+        "debug_context": {
+            "channel_profile": channel_guide.profile_key,
+            "normalized_title": title_analysis.normalized_title,
+            "artists_in_title": title_analysis.artists_in_title,
+            "detected_vibes": title_analysis.detected_vibes,
+            "priority_titles": generation_plan.priority_titles,
+            "audience_targets": channel_signals.audience_targets,
+            "trend_related": channel_signals.trend_related,
+            "trend_vibes": channel_signals.trend_vibes,
+            "feedback_tags": channel_signals.feedback_tags,
+            "cold_start_mode": channel_signals.cold_start_mode,
+        },
     }
 
 

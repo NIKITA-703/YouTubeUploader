@@ -786,6 +786,7 @@ regenHashtagsBtn?.addEventListener("click", async () => {
     setStatus("Перегенерирую теги...");
     const fd = new FormData();
     fd.append("title", title);
+    fd.append("channel_id", String(youtubeChannelEl?.value || "").trim());
 
     const res = await fetch("/api/gen_tags", { method: "POST", body: fd });
     const parsed = await safeJson(res);
@@ -810,6 +811,7 @@ regenSeoBtn?.addEventListener("click", async () => {
     setStatus("Перегенерируется SEO...");
     const fd = new FormData();
     fd.append("title", title);
+    fd.append("channel_id", String(youtubeChannelEl?.value || "").trim());
 
     const res = await fetch("/api/gen_tags", { method: "POST", body: fd });
     const parsed = await safeJson(res);
@@ -856,6 +858,7 @@ fillBtn?.addEventListener("click", async () => {
 
     const fd = new FormData();
     fd.append("title", title);
+    fd.append("channel_id", String(youtubeChannelEl?.value || "").trim());
     fd.append("purchase_link", String(purchaseLinkEl?.value || "").trim());
     fd.append("bpm", bpmValue);
     fd.append("key", keyEl?.value || "");

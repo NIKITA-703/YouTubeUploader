@@ -16,6 +16,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS videos (
                 video_id TEXT PRIMARY KEY,
                 title TEXT,
+                channel_id TEXT,
                 hashtags TEXT,
                 seo_tags TEXT,
                 upload_date DATETIME,
@@ -29,6 +30,8 @@ def init_db():
     # Migration for old DBs created before scheduled_publish_at existed.
     cursor.execute("PRAGMA table_info(videos)")
     video_cols = {row[1] for row in cursor.fetchall()}
+    if "channel_id" not in video_cols:
+        cursor.execute("ALTER TABLE videos ADD COLUMN channel_id TEXT")
     if "scheduled_publish_at" not in video_cols:
         cursor.execute("ALTER TABLE videos ADD COLUMN scheduled_publish_at DATETIME")
 
@@ -278,7 +281,14 @@ def delete_user(username: str) -> None:
     conn.close()
 
 
-def add_video_to_db(video_id, title, hashtags, seo_tags, scheduled_publish_at: str | None = None):
+def add_video_to_db(
+    video_id,
+    title,
+    hashtags,
+    seo_tags,
+    scheduled_publish_at: str | None = None,
+    channel_id: str | None = None,
+):
     # Используем str(DB_PATH) и добавляем timeout
     conn = sqlite3.connect(str(DB_PATH), timeout=10)
     cursor = conn.cursor()
@@ -286,16 +296,18 @@ def add_video_to_db(video_id, title, hashtags, seo_tags, scheduled_publish_at: s
         INSERT OR IGNORE INTO videos (
             video_id,
             title,
+            channel_id,
             hashtags,
             seo_tags,
             upload_date,
             scheduled_publish_at,
             last_updated
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         video_id,
         title,
+        channel_id,
         ",".join(hashtags),
         ",".join(seo_tags),
         datetime.now(),
@@ -475,18 +487,75 @@ def get_best_tags(limit=20):
     return list(set(all_tags))[:limit]
 
 
-def get_ai_knowledge_base():
+def get_ai_knowledge_base(channel_id: str | None = None, limit: int = 15):
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(videos)")
+    video_cols = {row[1] for row in cursor.fetchall()}
+    has_channel_id = "channel_id" in video_cols
+    if channel_id:
+        from app.youtube.channels import get_default_youtube_channel_id
 
-    # Берем топ-15, чтобы ИИ мог найти совпадения по конкретным артистам
-    cursor.execute('''
-        SELECT title, seo_tags, views 
-        FROM videos 
-        WHERE views > 2 
-        ORDER BY views DESC LIMIT 15
-    ''')
+        default_channel_id = get_default_youtube_channel_id()
+        if not has_channel_id:
+            cursor.execute(
+                '''
+                SELECT title, NULL as channel_id, seo_tags, views
+                FROM videos
+                WHERE views > 2
+                ORDER BY views DESC
+                LIMIT ?
+                ''',
+                (int(limit),),
+            )
+        elif channel_id == default_channel_id:
+            cursor.execute(
+                '''
+                SELECT title, channel_id, seo_tags, views
+                FROM videos
+                WHERE views > 2
+                  AND (channel_id = ? OR channel_id IS NULL OR trim(channel_id) = '')
+                ORDER BY views DESC
+                LIMIT ?
+                ''',
+                (channel_id, int(limit)),
+            )
+        else:
+            cursor.execute(
+                '''
+                SELECT title, channel_id, seo_tags, views
+                FROM videos
+                WHERE views > 2
+                  AND channel_id = ?
+                ORDER BY views DESC
+                LIMIT ?
+                ''',
+                (channel_id, int(limit)),
+            )
+    else:
+        if has_channel_id:
+            cursor.execute(
+                '''
+                SELECT title, channel_id, seo_tags, views
+                FROM videos
+                WHERE views > 2
+                ORDER BY views DESC
+                LIMIT ?
+                ''',
+                (int(limit),),
+            )
+        else:
+            cursor.execute(
+                '''
+                SELECT title, NULL as channel_id, seo_tags, views
+                FROM videos
+                WHERE views > 2
+                ORDER BY views DESC
+                LIMIT ?
+                ''',
+                (int(limit),),
+            )
     best_performers = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return best_performers

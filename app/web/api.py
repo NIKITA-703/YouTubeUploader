@@ -677,6 +677,7 @@ def _run_post_upload_shorts_pipeline(
             youtube=youtube,
             media_file=str(short_path),
             beat_name=short_payload["title"],
+            channel_id=target_channel.channel_id,
             bpm=bpm,
             key=key,
             user_data=user_session_data,
@@ -1113,7 +1114,7 @@ def api_channel_access(request: Request, publish_dt_local: str = ""):
 
 
 @router.post("/gen_tags")
-def api_gen_tags(title: str = Form(...)):
+def api_gen_tags(title: str = Form(...), channel_id: str = Form("")):
     cfg = load_config()
     keys = cfg.gemini_api_key  # API keys list
 
@@ -1128,7 +1129,7 @@ def api_gen_tags(title: str = Form(...)):
     for current_key in keys:
         try:
             print(f"--> [REGEN] Попытка ключом: {current_key[:10]}...")
-            ai_data = generate_youtube_tags(title, api_key=current_key)
+            ai_data = generate_youtube_tags(title, api_key=current_key, channel_id=(channel_id or "").strip() or None)
             if ai_data:
                 break
         except Exception as e:
@@ -1185,6 +1186,7 @@ def api_preview_refresh(title: str = Form(...)):
 @router.post("/fill")
 def api_fill(request: Request,
              title: str = Form(""),
+             channel_id: str = Form(""),
              purchase_link: str = Form("https://www.beatstars.com/kellmibeats"),
              bpm: str = Form(""),
              key: str = Form(""),
@@ -1208,7 +1210,7 @@ def api_fill(request: Request,
     for current_key in keys:
         try:
             print(f"--> Попытка генерации ключом: {current_key[:10]}...")
-            ai_data = generate_youtube_tags(title, api_key=current_key)
+            ai_data = generate_youtube_tags(title, api_key=current_key, channel_id=(channel_id or "").strip() or None)
             if ai_data:
                 print("--> Успешно сгенерировано!")
                 break
@@ -1431,6 +1433,7 @@ def api_upload(
             user_data=user_session_data,
             purchase_link_override=purchase_link,
             gemini_api_key=cfg.gemini_api_key,
+            channel_id=selected_channel.channel_id,
             hashtags_override=hashtags_list,
             seo_tags_override=seo_list,
             publish_at_override=publish_at,

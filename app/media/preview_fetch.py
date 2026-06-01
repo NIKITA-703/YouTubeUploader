@@ -26,6 +26,12 @@ NON_RAPPER_PREVIEW_ENTITIES = {
     "experimental",
     "plugg",
 }
+PRODUCER_PREVIEW_ENTITIES = {
+    "mike dean",
+    "metro boomin",
+    "southside",
+    "pharrell williams"
+}
 PREVIEW_NEGATIVE_TERMS = {
     "shirtless",
     "underwear",
@@ -57,6 +63,11 @@ PREVIEW_POSITIVE_TERMS = {
     "studio",
     "performance",
     "concert",
+    "producer",
+    "synth",
+    "keyboard",
+    "mixing",
+    "recording",
 }
 
 
@@ -131,9 +142,34 @@ def _filter_preview_artists(artists: list[str]) -> list[str]:
     return filtered
 
 
+def _filter_producer_preview_artists(artists: list[str]) -> list[str]:
+    filtered: list[str] = []
+    seen_lower: set[str] = set()
+    for artist in artists:
+        normalized = artist.strip().lower()
+        if not normalized or normalized not in PRODUCER_PREVIEW_ENTITIES:
+            continue
+        if normalized in seen_lower:
+            continue
+        seen_lower.add(normalized)
+        filtered.append(artist.strip())
+    return filtered
+
+
 def build_people_query(artists: list[str]) -> list[str]:
     site_limit = "site:pinterest.com"
+    producer_artists = _filter_producer_preview_artists(artists)
     artists = _filter_preview_artists(artists)
+    if not artists and producer_artists:
+        producer = producer_artists[0]
+        return [
+            f"{site_limit} {producer} producer portrait",
+            f"{site_limit} {producer} studio portrait",
+            f"{site_limit} {producer} synth studio portrait",
+            f"{site_limit} {producer} producer aesthetic portrait",
+            f"{site_limit} {producer} recording studio portrait",
+        ]
+
     if not artists:
         return [
             f"{site_limit} rapper aesthetic portrait",

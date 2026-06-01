@@ -47,7 +47,7 @@ _bot_loop_task: asyncio.Task | None = None
 _stop_event = asyncio.Event()
 _updates_offset: int | None = None
 _reminders_enabled = False
-_chat_view_message_ids: dict[int, int] = {}
+_chat_view_message_ids: dict[tuple[int, int | None], int] = {}
 
 
 def _escape(value: str | None) -> str:
@@ -66,6 +66,24 @@ def _safe_chat_id(user: dict | None) -> int | None:
         return int(raw) if raw not in (None, "") else None
     except Exception:
         return None
+
+
+def _is_private_chat(chat: types.Chat | None) -> bool:
+    return bool(chat and getattr(chat, "type", "") == "private")
+
+
+def _message_thread_id(message: types.Message | None) -> int | None:
+    if not message:
+        return None
+    raw = getattr(message, "message_thread_id", None)
+    try:
+        return int(raw) if raw not in (None, "") else None
+    except Exception:
+        return None
+
+
+def _view_cache_key(chat_id: int | str, thread_id: int | None = None) -> tuple[int, int | None]:
+    return (int(chat_id), thread_id)
 
 
 def _display_name(user: dict | None, fallback: str = "") -> str:
@@ -137,12 +155,15 @@ async def _upsert_view_message(
     *,
     reply_markup: types.InlineKeyboardMarkup | None = None,
     source_message: types.Message | None = None,
+    thread_id: int | None = None,
 ) -> None:
     if not bot:
         return
 
     numeric_chat_id = int(chat_id)
-    target_message_id = source_message.message_id if source_message else _chat_view_message_ids.get(numeric_chat_id)
+    resolved_thread_id = thread_id if thread_id is not None else _message_thread_id(source_message)
+    cache_key = _view_cache_key(numeric_chat_id, resolved_thread_id)
+    target_message_id = source_message.message_id if source_message else _chat_view_message_ids.get(cache_key)
 
     if target_message_id is not None:
         try:
@@ -153,18 +174,22 @@ async def _upsert_view_message(
                 reply_markup=reply_markup,
                 disable_web_page_preview=True,
             )
-            _chat_view_message_ids[numeric_chat_id] = int(target_message_id)
+            _chat_view_message_ids[cache_key] = int(target_message_id)
             return
         except Exception:
             pass
 
-    sent = await bot.send_message(
-        chat_id=str(chat_id),
-        text=text,
-        reply_markup=reply_markup,
-        disable_web_page_preview=True,
-    )
-    _chat_view_message_ids[numeric_chat_id] = int(sent.message_id)
+    send_kwargs: dict[str, Any] = {
+        "chat_id": str(chat_id),
+        "text": text,
+        "reply_markup": reply_markup,
+        "disable_web_page_preview": True,
+    }
+    if resolved_thread_id is not None:
+        send_kwargs["message_thread_id"] = resolved_thread_id
+
+    sent = await bot.send_message(**send_kwargs)
+    _chat_view_message_ids[cache_key] = int(sent.message_id)
 
 
 async def send_upload_report(
@@ -628,6 +653,11 @@ async def _handle_callback(cb: types.CallbackQuery) -> None:
 
 async def _handle_message(msg: types.Message) -> None:
     if not msg or not msg.chat:
+        return
+
+    # Интерактивное меню бота работает только в личке.
+    # В группах/форум-темах бот не должен спамить служебными ответами.
+    if not _is_private_chat(msg.chat):
         return
 
     text = str(msg.text or "").strip()

@@ -3,6 +3,8 @@ const videoEl = document.getElementById("video_file");
 const bundleFileEl = document.getElementById("bundle_file");
 const hashtagsEl = document.getElementById("hashtags");
 const seoEl = document.getElementById("seo_tags");
+const seoCounterEl = document.getElementById("seo_tags_counter");
+const seoWarningEl = document.getElementById("seo_tags_warning");
 const publishEl = document.getElementById("publish_dt");
 const youtubeChannelEl = document.getElementById("youtube_channel");
 const youtubeChannelBadgeEl = document.getElementById("youtube_channel_badge");
@@ -69,6 +71,7 @@ let uiBusy = false;
 let calendarDutyStates = new Map();
 let calendarDutyReqSeq = 0;
 let channelAccessReqSeq = 0;
+const SEO_TAGS_UI_LIMIT = 500;
 
 const backendActionButtons = [
   fillBtn,
@@ -97,6 +100,44 @@ function safeCssEscape(value) {
     return window.CSS.escape(value);
   }
   return String(value).replace(/["\\]/g, "\\$&");
+}
+
+function getSeoTextLength() {
+  return String(seoEl?.value || "").length;
+}
+
+function validateSeoLength({ showWarning = false } = {}) {
+  const length = getSeoTextLength();
+  const isOver = length > SEO_TAGS_UI_LIMIT;
+
+  if (seoCounterEl) {
+    seoCounterEl.textContent = `${length} / ${SEO_TAGS_UI_LIMIT}`;
+    seoCounterEl.classList.toggle("is-over", isOver);
+  }
+
+  if (seoEl) {
+    seoEl.classList.toggle("is-invalid", isOver);
+    seoEl.setAttribute("aria-invalid", isOver ? "true" : "false");
+  }
+
+  if (seoWarningEl) {
+    const text = isOver
+      ? `SEO-теги превышают лимит ${SEO_TAGS_UI_LIMIT} символов. Сократи текст перед загрузкой.`
+      : "";
+    seoWarningEl.textContent = text;
+    seoWarningEl.classList.toggle("is-visible", Boolean(text));
+  }
+
+  if (uploadBtn) {
+    uploadBtn.title = isOver ? `SEO-теги длиннее ${SEO_TAGS_UI_LIMIT} символов` : "";
+  }
+
+  if (isOver && showWarning) {
+    setStatus("Ошибка");
+    showError(`SEO-теги длиннее ${SEO_TAGS_UI_LIMIT} символов. Сократи текст и попробуй снова.`);
+  }
+
+  return !isOver;
 }
 
 function syncCreateVideoHref() {
@@ -820,6 +861,7 @@ regenSeoBtn?.addEventListener("click", async () => {
     }
 
     if (seoEl) seoEl.value = parsed.data.seo_tags || "";
+    validateSeoLength();
     setStatus("SEO обновлены ✅");
   } catch (e) {
     setStatus("Ошибка");
@@ -831,6 +873,7 @@ clearBtn?.addEventListener("click", () => {
   if (uiBusy) return;
   if (hashtagsEl) hashtagsEl.value = "";
   if (seoEl) seoEl.value = "";
+  validateSeoLength();
   if (publishEl) publishEl.value = "";
   if (previewImg) previewImg.src = "";
   if (previewFilenameEl) previewFilenameEl.value = "";
@@ -872,6 +915,7 @@ fillBtn?.addEventListener("click", async () => {
     const data = parsed.data || {};
     if (hashtagsEl) hashtagsEl.value = data.hashtags || "";
     if (seoEl) seoEl.value = data.seo_tags || "";
+    validateSeoLength();
 
     let previewStatus = "";
     if (data.preview_url && previewImg) {
@@ -964,6 +1008,10 @@ previewFileEl?.addEventListener("change", () => {
   previewImg.src = localPreviewUrl;
   if (previewFilenameEl) previewFilenameEl.value = "";
   setStatus("Выбрано своё превью ✅");
+});
+
+seoEl?.addEventListener("input", () => {
+  validateSeoLength();
 });
 
 function dateToIsoLocal(dateObj) {
@@ -1146,6 +1194,7 @@ uploadBtn?.addEventListener("click", async () => {
   try {
     const title = String(titleEl?.value || "").trim();
     if (!title) throw new Error("Заполните название");
+    if (!validateSeoLength({ showWarning: true })) return;
 
     const hasLocalVideo = !!(videoEl?.files && videoEl.files.length > 0);
     const serverVideoFilename = String(serverVideoFilenameEl?.value || "").trim();
@@ -1334,6 +1383,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (opsLogsEl) {
     loadOpsLogs().catch(() => {});
   }
+  validateSeoLength();
   initPublishPicker();
   refreshChannelAccess().catch(() => {});
 

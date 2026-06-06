@@ -1159,7 +1159,10 @@ def api_gen_preview(title: str = Form(...)):
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Лимит Google CSE на сегодня исчерпан. Выбери превью из галереи или загрузи своё.",
             )
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Не удалось найти превью автоматически: {e}",
+        )
 
     return _preview_http_payload(preview_path)
 
@@ -1168,7 +1171,7 @@ def api_gen_preview(title: str = Form(...)):
 def api_preview_refresh(title: str = Form(...)):
     title = (title or "").strip()[:100]
     if not title:
-        raise HTTPException(status_code=400, detail="title ??????")
+        raise HTTPException(status_code=400, detail="title пустой")
 
     try:
         preview_path = download_thumbnail_for_beat(title)
@@ -1176,9 +1179,12 @@ def api_preview_refresh(title: str = Form(...)):
         if str(e) == "CSE_QUOTA_EXCEEDED":
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="????? Google CSE ?? ??????? ????????. ?????? ?????? ?? ??????? ??? ??????? ????.",
+                detail="Лимит Google CSE на сегодня исчерпан. Выбери превью из галереи или загрузи своё.",
             )
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Не удалось найти превью автоматически: {e}",
+        )
 
     return _preview_http_payload(preview_path)
 
@@ -1371,6 +1377,13 @@ def api_upload(
                     status_code=400,
                     detail="Дата публикации должна быть минимум через 30 минут от текущего времени МСК",
                 )
+
+        raw_seo_text = str(seo_tags or "")
+        if len(raw_seo_text) > 500:
+            raise HTTPException(
+                status_code=400,
+                detail="SEO-теги длиннее 500 символов. Сократи текст перед загрузкой.",
+            )
 
         hashtags_list = normalize_hashtags(hashtags)
         seo_list = normalize_seo_tags(seo_tags)

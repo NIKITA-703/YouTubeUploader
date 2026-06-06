@@ -25,6 +25,10 @@ NON_RAPPER_PREVIEW_ENTITIES = {
     "electronic",
     "experimental",
     "plugg",
+    "артист",
+    "artist",
+    "type",
+    "beat",
 }
 PRODUCER_PREVIEW_ENTITIES = {
     "mike dean",
@@ -195,6 +199,8 @@ def build_people_query(artists: list[str]) -> list[str]:
             f"{site_limit} {producer} synth studio portrait",
             f"{site_limit} {producer} producer aesthetic portrait",
             f"{site_limit} {producer} recording studio portrait",
+            f"{producer} producer portrait",
+            f"{producer} studio portrait",
         ]
 
     if not artists:
@@ -202,6 +208,8 @@ def build_people_query(artists: list[str]) -> list[str]:
             f"{site_limit} male rapper aesthetic portrait",
             f"{site_limit} hip hop male artist editorial portrait",
             f"{site_limit} underground rapper portrait",
+            "male rapper aesthetic portrait",
+            "hip hop male artist editorial portrait",
         ]
 
     vibes = [
@@ -219,16 +227,26 @@ def build_people_query(artists: list[str]) -> list[str]:
     main_artist = artists[0]
     for vibe in random.sample(vibes, 3):
         queries.append(f"{site_limit} {main_artist} {vibe}")
+        queries.append(f"{main_artist} {vibe}")
 
     if len(artists) >= 2:
         second_artist = artists[1]
         queries.append(f"{site_limit} {second_artist} {random.choice(vibes)}")
         queries.append(f"{site_limit} {second_artist} rapper portrait")
+        queries.append(f"{second_artist} rapper portrait")
 
         joined = " ".join(artists)
         queries.append(f"{site_limit} {joined} rappers together portrait")
-
-    return queries
+        queries.append(f"{joined} rappers together portrait")
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for query in queries:
+        key = query.strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(query)
+    return deduped
 
 
 def download_thumbnail_for_beat(beat_name: str) -> Path:

@@ -1223,6 +1223,40 @@ textarea.glitch-input:focus {
   line-height: 1.1;
 }
 
+.seo-counter {
+  font-family: "Fira Code", Consolas, "Courier New", monospace;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: rgba(0, 242, 234, 0.88);
+}
+
+.seo-counter.is-over {
+  color: #ff4d6d;
+  text-shadow: 0 0 10px rgba(255, 77, 109, 0.25);
+}
+
+.seo-warning {
+  min-height: 1.2rem;
+  margin-top: 0.25rem;
+  font-size: 0.82rem;
+  color: transparent;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+.seo-warning.is-visible {
+  color: #ff6b6b;
+  text-shadow: 0 0 10px rgba(255, 107, 107, 0.22);
+}
+
+.glitch-input.is-invalid,
+textarea.glitch-input.is-invalid,
+input.glitch-input.is-invalid {
+  border-color: rgba(255, 77, 109, 0.92) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 77, 109, 0.2),
+    0 0 16px rgba(255, 77, 109, 0.12) !important;
+}
+
 /* sizes */
 .glitch-btn--sm {
   letter-spacing: 0.14em;

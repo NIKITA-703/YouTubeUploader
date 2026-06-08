@@ -60,8 +60,8 @@ def normalize_seo_tags(text: str) -> list[str]:
         if key in seen:
             continue
 
-        add_len = len(token) + (1 if out else 0)
-        if total + add_len > 490:
+        add_len = len(token) + (2 if out else 0)
+        if total + add_len > 500:
             break
 
         seen.add(key)

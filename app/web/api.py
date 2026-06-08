@@ -1378,15 +1378,15 @@ def api_upload(
                     detail="Дата публикации должна быть минимум через 30 минут от текущего времени МСК",
                 )
 
-        raw_seo_text = str(seo_tags or "")
-        if len(raw_seo_text) > 500:
+        seo_list = normalize_seo_tags(seo_tags)
+        seo_joined = ", ".join(seo_list)
+        if len(seo_joined) > 500:
             raise HTTPException(
                 status_code=400,
                 detail="SEO-теги длиннее 500 символов. Сократи текст перед загрузкой.",
             )
 
         hashtags_list = normalize_hashtags(hashtags)
-        seo_list = normalize_seo_tags(seo_tags)
 
         preview_path_override: Optional[str] = None
         preview_selected_by_user = False

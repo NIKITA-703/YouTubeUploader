@@ -4,6 +4,7 @@ import os
 import datetime
 from dataclasses import dataclass
 from typing import Any
+from contextlib import contextmanager
 
 from google import genai
 from google.genai import types
@@ -17,6 +18,33 @@ from app.database import get_ai_knowledge_base, get_all_entities
 YOUTUBE_TAGS_MAX_TOTAL_CHARS = 490
 MAX_HASHTAGS = 3
 MAX_SEO_TAGS = 22
+
+
+@contextmanager
+def _temporary_proxy_env(proxy_url: str | None):
+    proxy_keys = [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ]
+    saved = {key: os.environ.get(key) for key in proxy_keys}
+    try:
+        if proxy_url:
+            for key in proxy_keys:
+                os.environ[key] = proxy_url
+        else:
+            for key in proxy_keys:
+                os.environ.pop(key, None)
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 @dataclass(frozen=True)
@@ -979,17 +1007,7 @@ def generate_youtube_tags(
       "seo_tags": [...]    # без #
     }
     """
-    # 1. Получаем прокси из .env
-    proxy_url = os.getenv("GEMINI_PROXY")
-
-    # 2. Устанавливаем прокси как системные переменные ПЕРЕД созданием клиента
-    if proxy_url:
-        print(f"--> [AI] Настройка системного прокси для Gemini")
-        os.environ["HTTP_PROXY"] = proxy_url
-        os.environ["HTTPS_PROXY"] = proxy_url
-
-    # 3. Создаем клиент БЕЗ http_options
-    client = genai.Client(api_key=api_key)
+    proxy_url = (os.getenv("GEMINI_PROXY") or "").strip() or None
 
     # 1. Получаем ВСЕХ артистов из базы (и старых, и тех, что добавили битмари)
     all_known_artists = get_all_entities()
@@ -1255,16 +1273,36 @@ def generate_youtube_tags(
         }
     }
 
-    resp = client.models.generate_content(
-        model=model,
-        contents=json.dumps(prompt, ensure_ascii=False),
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.25,
-            response_mime_type="application/json",
-            response_schema=response_schema,
-        ),
+    generate_config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        temperature=0.25,
+        response_mime_type="application/json",
+        response_schema=response_schema,
     )
+
+    direct_error: Exception | None = None
+    try:
+        print("--> [AI] Gemini direct attempt (без прокси)")
+        with _temporary_proxy_env(None):
+            client = genai.Client(api_key=api_key)
+            resp = client.models.generate_content(
+                model=model,
+                contents=json.dumps(prompt, ensure_ascii=False),
+                config=generate_config,
+            )
+    except Exception as error:
+        direct_error = error
+        if not proxy_url:
+            raise
+        print(f"--> [AI] Direct Gemini failed: {error}")
+        print("--> [AI] Gemini fallback attempt через GEMINI_PROXY")
+        with _temporary_proxy_env(proxy_url):
+            client = genai.Client(api_key=api_key)
+            resp = client.models.generate_content(
+                model=model,
+                contents=json.dumps(prompt, ensure_ascii=False),
+                config=generate_config,
+            )
 
     try:
         data = json.loads(resp.text)
